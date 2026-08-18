@@ -59,12 +59,21 @@ export interface PullRequestSummary {
   sourceIdentity: string;
   url: string;
   title: string;
+  merged: boolean;
+  reverted: boolean;
+  linkedIssueIdentities: readonly string[];
+  included?: boolean;
+  maintainerAnnotation?: string;
 }
 
 export interface IssueSummary {
   sourceIdentity: string;
   url: string;
   title: string;
+  closed: boolean;
+  linkedPullRequestIdentities: readonly string[];
+  included?: boolean;
+  maintainerAnnotation?: string;
 }
 
 export interface ContributorSummary {

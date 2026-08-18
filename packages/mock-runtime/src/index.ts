@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assembleCandidates } from "@release-relay/github-integration";
 import type {
   AiProvider,
   CandidateItem,
@@ -235,11 +236,31 @@ function comparisonValue(
 ): ComparisonResult {
   const base = `https://github.com/${repository.owner}/${repository.name}`;
   const pullRequests: readonly PullRequestSummary[] = [
-    { sourceIdentity: "pull/1", url: `${base}/pull/1`, title: "Improve release notes" },
-    { sourceIdentity: "pull/2", url: `${base}/pull/2`, title: "Document mock mode" }
+    {
+      sourceIdentity: "pull/1",
+      url: `${base}/pull/1`,
+      title: "Improve release notes",
+      merged: true,
+      reverted: false,
+      linkedIssueIdentities: []
+    },
+    {
+      sourceIdentity: "pull/2",
+      url: `${base}/pull/2`,
+      title: "Document mock mode",
+      merged: true,
+      reverted: false,
+      linkedIssueIdentities: []
+    }
   ];
   const issues: readonly IssueSummary[] = [
-    { sourceIdentity: "issue/7", url: `${base}/issues/7`, title: "Clarify setup" }
+    {
+      sourceIdentity: "issue/7",
+      url: `${base}/issues/7`,
+      title: "Clarify setup",
+      closed: true,
+      linkedPullRequestIdentities: []
+    }
   ];
   const contributors: readonly ContributorSummary[] = [
     { identity: "maintainer", url: "https://github.com/maintainer" }
@@ -248,19 +269,6 @@ function comparisonValue(
     { tag: "v0.1.0", url: `${base}/releases/tag/v0.1.0`, title: "Initial release" }
   ];
   return { range, pullRequests, issues, contributors, priorReleases };
-}
-
-function candidatesFromComparison(
-  comparison: ComparisonResult
-): readonly CandidateItem[] {
-  const sourceItems = [...comparison.pullRequests, ...comparison.issues];
-  return sourceItems.map((item, index) => ({
-    sourceIdentity: item.sourceIdentity,
-    sourceUrl: item.url,
-    title: item.title,
-    included: true,
-    order: index
-  }));
 }
 
 function draftValue(
@@ -429,7 +437,7 @@ export function createMockRuntime(options: MockRuntimeOptions = {}): MockRuntime
     assembleCandidates: async (input) => {
       const result = await reader.compare(input);
       if (result.status === "completed" || result.status === "duplicate") {
-        return { ...result, value: candidatesFromComparison(result.value) };
+        return { ...result, value: assembleCandidates(result.value) };
       }
       return result;
     }

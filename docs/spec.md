@@ -32,6 +32,10 @@ A supporter reads public release updates and may choose a recurring sponsorship 
 4. Every retained item preserves its GitHub URL and source identity.
 5. The candidate can be saved without calling an AI provider.
 
+When a merged pull request is linked to an issue, the pull request is the
+candidate's primary source and the issue is not duplicated. Reverted work is
+retained as excluded source material rather than presented as a release change.
+
 Success means the maintainer has an editable, source-grounded release outline. Reading GitHub data is not permission to mutate GitHub.
 
 ### 2. Draft and review release communication
