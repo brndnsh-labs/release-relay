@@ -1,0 +1,88 @@
+// the-cycle bindings for Release Relay.
+// Everything repo-specific lives here; rendered skills under .claude/skills and
+// .agents/skills must never be edited by hand. Change this file or an overlay,
+// then run `cycle update` and `cycle check`.
+{
+  "repo": {
+    "name": "release-relay",
+    "slug": "brndnsh-labs/release-relay",
+    "human": "Brandon"
+  },
+  "profile": "lean",
+  "backend": "github",
+  "harnesses": ["claude", "codex"],
+  "tracker": {
+    "description": "**GitHub issues** (`brndnsh-labs/release-relay`)",
+    "statuses": [
+      {
+        "name": "status:ready",
+        "meaning": "scoped, dependency-clear and pickable",
+        "action": "`/next` ranks and picks it; `/implement` or `/cycle` builds it"
+      },
+      {
+        "name": "status:in-progress",
+        "meaning": "implementation is active",
+        "action": "do not pick it again"
+      },
+      {
+        "name": "status:in-review",
+        "meaning": "the implementation is in a pull request",
+        "action": "do not pick it again; review and CI own the next move"
+      },
+      {
+        "name": "status:blocked",
+        "meaning": "a named issue or milestone dependency is incomplete",
+        "action": "skip it and name the blocker"
+      },
+      {
+        "name": "status:needs-decision",
+        "meaning": "a product, architecture, security or live-operation decision is required",
+        "action": "surface the drafted decision and do not implement it"
+      }
+    ],
+    "status": {
+      "pickable": "status:ready",
+      "active": "status:in-progress",
+      "done": "status:in-review",
+      "decision": "status:needs-decision"
+    },
+    "ranking": "**milestone first**, then **issue number**; only the earliest milestone with dependency-clear ready work is active",
+    "milestones": []
+  },
+  "routing": {
+    "model": "Use a smaller fast model for bounded implementation stories with explicit acceptance criteria; use a frontier model for product architecture, security, money, live-provider boundaries, and oracle truth changes.",
+    "executor_default": "orchestrator-inline"
+  },
+  "gates": {
+    "check": "pnpm check",
+    "build": "pnpm build"
+  },
+  "deps": {
+    "outdated": "pnpm outdated",
+    "audit": "pnpm audit",
+    "audit_fix": "pnpm audit --fix",
+    "update": "pnpm update",
+    "install": "pnpm install",
+    "lockfile": "pnpm-lock.yaml",
+    "manifests": ["package.json", "pnpm-lock.yaml"]
+  },
+  "brakes": [
+    "Adding or running a live OpenAI, Anthropic, GitHub, or Stripe call, because it sends data or changes remote state",
+    "Adding, exposing, rotating, or changing the handling of credentials, tokens, cookies, webhook secrets, or private keys",
+    "Creating or changing a remote GitHub release, Stripe resource, charge, subscription, webhook endpoint, or other external object",
+    "Weakening explicit confirmation, current-authorization rechecks, signature validation, idempotency, request bounds, fixed provider hosts, or safe logging",
+    "Changing authentication, authorization, payment-state, data-retention, persistent schema, migration, or destructive-data semantics",
+    "Changing reviewed oracle truth merely to match current Breakscope output, or generating committed expectations from detector output",
+    "Deploying the application or creating hosted infrastructure; no environment is authorized by this repository"
+  ],
+  "branch": {
+    "minor_edits_direct": true
+  },
+  "commit": {
+    "coauthor": ""
+  },
+  "deploy": {
+    "test": "",
+    "prod": ""
+  }
+}
