@@ -19,14 +19,14 @@ The manifest is implemented in `packages/coverage-oracle` (validator + CLI), wit
       "id": "github-release-create-direct",
       "purpose": "Publish an approved GitHub release",
       "source": {
-        "file": "packages/github-integration/src/publisher.ts",
-        "anchor": "release-publish-call"
+         "file": "packages/github-integration/src/publish.ts",
+         "anchor": "write-adapter-client"
       },
       "expectations": [
         {
           "outcome": "observation",
           "provider": "github",
-          "identifier": "repos.releases.create",
+           "identifier": "repos.createRelease",
           "evidenceKind": "sdk-call",
           "confidence": "alertable"
         }

@@ -78,16 +78,29 @@ test("the runtime composes the offline release workflow", async () => {
   );
   assert.equal(review.kind, "review");
   workspace = workspaceValue(transition(workspace, "approved"));
+  const authorization = value(
+    await runtime.publisher.getAuthorization({
+      operationId: runtime.nextOperationId("authorization"),
+      repository
+    })
+  );
   const preview = runtime.publisher.previewRelease({
     operationId: runtime.nextOperationId("publish"),
     workspaceId: workspace.id,
     repository,
+    authorizationRevision: authorization.revision,
     tag: "v0.2.0",
     title: draft.content.title,
     body: draft.content.summary
   });
+  const confirmation = value(
+    runtime.publisher.confirmRelease({
+      preview,
+      authorizationRevision: authorization.revision
+    })
+  );
   const published = value(
-    await runtime.publisher.publishRelease({ ...preview, confirmation: "confirmed" })
+    await runtime.publisher.publishRelease({ ...preview, confirmation })
   );
   workspace = workspaceValue(
     publishWorkspace(workspace, { status: "completed", url: published.url })
@@ -131,6 +144,7 @@ test("the runtime composes the offline release workflow", async () => {
       { provider: "github", status: "completed" },
       { provider: "openai", status: "completed" },
       { provider: "anthropic", status: "completed" },
+      { provider: "github", status: "completed" },
       { provider: "github", status: "completed" },
       { provider: "stripe", status: "completed" },
       { provider: "stripe", status: "completed" },

@@ -79,7 +79,12 @@ Each provider package owns SDK construction, raw response validation, error clas
 
 The GitHub read adapter uses the registered Octokit REST methods for repository,
 comparison, pull request, issue, contributor, and release reads. Its test seam
-accepts an injected client; only the explicit live-read root constructs Octokit.
+accepts an injected client; only explicit live composition roots construct
+Octokit.
+The separate GitHub write adapter uses `repos.get` for the current publication
+authorization check, `repos.getReleaseByTag` for reconciliation, and
+`repos.createRelease` only after preview hash, confirmation, expiry, and access
+checks pass.
 
 Raw HTTP variants exist only where they represent realistic product code or a declared coverage scenario. No adapter accepts an arbitrary caller-provided base URL. Webhook handlers receive raw bytes for signature verification before parsing.
 
