@@ -6,9 +6,9 @@ The oracle is a reviewed statement of what Breakscope should learn from a pinned
 
 An oracle entry describes an expected observation, expected absence, file disposition, or deliberate uncertainty. A repository revision plus oracle version forms a reproducible evaluation input.
 
-## Planned manifest
+## Manifest
 
-The first foundation milestone will implement a runtime-validated manifest. The intended conceptual shape is:
+The manifest is implemented in `packages/coverage-oracle` (validator + CLI), with a validating example under `scenarios/oracle-v1.example.json`. The intended conceptual shape is:
 
 ```json
 {
