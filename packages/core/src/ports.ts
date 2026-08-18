@@ -87,14 +87,19 @@ export interface ComparisonResult {
 }
 
 export interface GitHubReader {
-  getRepository(repository: RepositoryRef): Promise<OperationResult<RepositorySummary>>;
+  getRepository(input: {
+    operationId: OperationId;
+    repository: RepositoryRef;
+  }): Promise<OperationResult<RepositorySummary>>;
   compare(input: {
+    operationId: OperationId;
     repository: RepositoryRef;
     range: ComparisonRange;
   }): Promise<OperationResult<ComparisonResult>>;
 }
 
 export interface ReleasePreview {
+  operationId: OperationId;
   workspaceId: string;
   repository: RepositoryRef;
   tag: string;
@@ -227,7 +232,7 @@ export interface StripeWebhookProjector {
   project(event: VerifiedWebhookEvent): Promise<OperationResult<MembershipProjection>>;
 }
 
-export type OperationLedgerEntry =
+export type OperationLedgerEntryInput =
   | {
       operationId: OperationId;
       provider: Provider;
@@ -243,7 +248,11 @@ export type OperationLedgerEntry =
       errorClass: SafeErrorClass;
     };
 
+export type OperationLedgerEntry = OperationLedgerEntryInput & {
+  recordedAt: string;
+};
+
 export interface OperationLedger {
-  record(entry: OperationLedgerEntry): void;
+  record(entry: OperationLedgerEntryInput): void;
   entries(): readonly OperationLedgerEntry[];
 }

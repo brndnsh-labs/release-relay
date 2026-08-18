@@ -36,6 +36,19 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/mock-runtime:
+    dependencies:
+      '@release-relay/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
 packages:
 
   '@biomejs/biome@2.5.9':

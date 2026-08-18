@@ -1,0 +1,21 @@
+{
+  "name": "@release-relay/mock-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @release-relay/core build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test dist/index.test.js"
+  },
+  "dependencies": {
+    "@release-relay/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}
