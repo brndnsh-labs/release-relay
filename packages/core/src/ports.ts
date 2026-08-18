@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CandidateItem, DraftContent } from "./workspace.js";
 
 export const providers = ["github", "openai", "anthropic", "stripe"] as const;
@@ -111,17 +112,69 @@ export interface ReleasePreview {
   operationId: OperationId;
   workspaceId: string;
   repository: RepositoryRef;
+  authorizationRevision: string;
   tag: string;
   title: string;
   body: string;
+  draft: boolean;
+  prerelease: boolean;
+  expiresAt: string;
+  previewHash: string;
 }
 
-export interface ReleasePublicationRequest extends ReleasePreview {
+export interface ReleasePublicationRequest {
   operationId: OperationId;
+  workspaceId: string;
+  repository: RepositoryRef;
+  authorizationRevision: string;
+  tag: string;
+  title: string;
+  body: string;
+  draft?: boolean;
+  prerelease?: boolean;
 }
 
-export interface ConfirmedReleasePublication extends ReleasePublicationRequest {
-  confirmation: "confirmed";
+export interface ReleaseAuthorization {
+  repository: RepositoryRef;
+  revision: string;
+  canPublish: boolean;
+}
+
+export interface ReleaseConfirmation {
+  token: string;
+  previewHash: string;
+  authorizationRevision: string;
+  expiresAt: string;
+}
+
+export interface ReleaseConfirmationInput {
+  preview: ReleasePreview;
+  authorizationRevision: string;
+}
+
+export interface ConfirmedReleasePublication extends ReleasePreview {
+  confirmation: ReleaseConfirmation;
+}
+
+export function releasePreviewHash(
+  preview: Omit<ReleasePreview, "previewHash">
+): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        operationId: preview.operationId,
+        workspaceId: preview.workspaceId,
+        repository: preview.repository,
+        authorizationRevision: preview.authorizationRevision,
+        tag: preview.tag,
+        title: preview.title,
+        body: preview.body,
+        draft: preview.draft,
+        prerelease: preview.prerelease,
+        expiresAt: preview.expiresAt
+      })
+    )
+    .digest("hex");
 }
 
 export interface PublishedRelease {
@@ -130,7 +183,12 @@ export interface PublishedRelease {
 }
 
 export interface GitHubPublisher {
+  getAuthorization(input: {
+    operationId: OperationId;
+    repository: RepositoryRef;
+  }): Promise<OperationResult<ReleaseAuthorization>>;
   previewRelease(request: ReleasePublicationRequest): ReleasePreview;
+  confirmRelease(input: ReleaseConfirmationInput): OperationResult<ReleaseConfirmation>;
   publishRelease(
     request: ConfirmedReleasePublication
   ): Promise<OperationResult<PublishedRelease>>;

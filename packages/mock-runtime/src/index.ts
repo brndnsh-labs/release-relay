@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { assembleCandidates } from "@release-relay/github-integration";
+import { releasePreviewHash } from "@release-relay/core";
 import type {
   AiProvider,
   CandidateItem,
@@ -24,6 +25,8 @@ import type {
   Provider,
   PublishedRelease,
   PullRequestSummary,
+  ReleaseAuthorization,
+  ReleaseConfirmation,
   ReleaseDrafter,
   ReleasePublicationRequest,
   ReleasePreview,
@@ -68,6 +71,7 @@ export interface MockRuntime {
 interface StoredOperation {
   provider: Provider;
   operation: string;
+  fingerprint?: string;
   resourceId: string | undefined;
   value: unknown;
 }
@@ -124,6 +128,7 @@ class MockEngine {
     provider: Provider;
     operation: string;
     operationId: OperationId;
+    fingerprint?: string;
     resourceId?: string;
     createValue: () => T;
   }): OperationResult<T> {
@@ -131,7 +136,8 @@ class MockEngine {
     if (previous !== undefined) {
       if (
         previous.provider !== input.provider ||
-        previous.operation !== input.operation
+        previous.operation !== input.operation ||
+        previous.fingerprint !== input.fingerprint
       ) {
         const result: OperationResult<T> = {
           status: "failed",
@@ -186,6 +192,7 @@ class MockEngine {
     this.completed.set(input.operationId, {
       provider: input.provider,
       operation: input.operation,
+      ...(input.fingerprint === undefined ? {} : { fingerprint: input.fingerprint }),
       resourceId: input.resourceId,
       value
     });
@@ -219,6 +226,10 @@ class DeterministicClock {
 
   next(): string {
     return new Date(this.startAt + this.tick++ * 1000).toISOString();
+  }
+
+  now(): Date {
+    return new Date(this.startAt + this.tick * 1000);
   }
 }
 
@@ -291,6 +302,29 @@ function draftValue(
   };
 }
 
+function releasePreviewFields(
+  preview: ReleasePreview
+): Omit<ReleasePreview, "previewHash"> {
+  return {
+    operationId: preview.operationId,
+    workspaceId: preview.workspaceId,
+    repository: preview.repository,
+    authorizationRevision: preview.authorizationRevision,
+    tag: preview.tag,
+    title: preview.title,
+    body: preview.body,
+    draft: preview.draft,
+    prerelease: preview.prerelease,
+    expiresAt: preview.expiresAt
+  };
+}
+
+function cloneReleaseConfirmation(
+  confirmation: ReleaseConfirmation
+): ReleaseConfirmation {
+  return { ...confirmation };
+}
+
 function createReader(seed: string, engine: MockEngine): GitHubReader {
   return {
     getRepository: async ({ operationId, repository }) =>
@@ -311,22 +345,177 @@ function createReader(seed: string, engine: MockEngine): GitHubReader {
   };
 }
 
-function createPublisher(engine: MockEngine): GitHubPublisher {
+function createPublisher(
+  seed: string,
+  engine: MockEngine,
+  clock: DeterministicClock
+): GitHubPublisher {
+  const previews = new Map<string, ReleasePreview>();
+  const operationPreviews = new Map<string, string>();
+  const confirmations = new Map<string, ReleaseConfirmation>();
+  const completedPublications = new Map<
+    string,
+    { previewHash: string; value: PublishedRelease }
+  >();
+
   return {
-    previewRelease: (request: ReleasePublicationRequest): ReleasePreview => ({
-      ...request
-    }),
-    publishRelease: async (request: ConfirmedReleasePublication) =>
-      engine.execute<PublishedRelease>({
+    getAuthorization: async ({ operationId, repository }) =>
+      engine.execute<ReleaseAuthorization>({
+        provider: "github",
+        operation: "release.authorization",
+        operationId,
+        resourceId: repository.name,
+        createValue: () => ({
+          repository,
+          revision: stableId(seed, "authorization", repository.owner, repository.name),
+          canPublish: true
+        })
+      }),
+    previewRelease: (request: ReleasePublicationRequest): ReleasePreview => {
+      const fields = {
+        operationId: request.operationId,
+        workspaceId: request.workspaceId,
+        repository: { ...request.repository },
+        authorizationRevision: request.authorizationRevision,
+        tag: request.tag,
+        title: request.title,
+        body: request.body,
+        draft: request.draft ?? false,
+        prerelease: request.prerelease ?? false,
+        expiresAt: new Date(clock.now().getTime() + 5 * 60 * 1000).toISOString()
+      };
+      const preview = { ...fields, previewHash: releasePreviewHash(fields) };
+      const previousHash = operationPreviews.get(preview.operationId);
+      if (previousHash !== undefined && previousHash !== preview.previewHash) {
+        throw new Error("operation ID already binds a different preview");
+      }
+      operationPreviews.set(preview.operationId, preview.previewHash);
+      previews.set(preview.previewHash, {
+        ...preview,
+        repository: { ...preview.repository }
+      });
+      return { ...preview, repository: { ...preview.repository } };
+    },
+    confirmRelease: ({ preview, authorizationRevision }) => {
+      const fields = releasePreviewFields(preview);
+      const issued = previews.get(preview.previewHash);
+      if (
+        issued === undefined ||
+        JSON.stringify(releasePreviewFields(issued)) !== JSON.stringify(fields) ||
+        releasePreviewHash(fields) !== preview.previewHash
+      ) {
+        return {
+          status: "failed",
+          operationId: preview.operationId,
+          errorClass: "invalid-input"
+        };
+      }
+      if (clock.now().getTime() >= Date.parse(preview.expiresAt)) {
+        return {
+          status: "failed",
+          operationId: preview.operationId,
+          errorClass: "invalid-input"
+        };
+      }
+      if (authorizationRevision !== preview.authorizationRevision) {
+        return {
+          status: "refused",
+          operationId: preview.operationId,
+          errorClass: "authorization"
+        };
+      }
+      const confirmation = {
+        token: stableId(seed, "confirmation", preview.previewHash),
+        previewHash: preview.previewHash,
+        authorizationRevision: preview.authorizationRevision,
+        expiresAt: preview.expiresAt
+      };
+      confirmations.set(confirmation.token, cloneReleaseConfirmation(confirmation));
+      return {
+        status: "completed",
+        operationId: preview.operationId,
+        value: cloneReleaseConfirmation(confirmation)
+      };
+    },
+    publishRelease: async (request: ConfirmedReleasePublication) => {
+      const fields = releasePreviewFields(request);
+      const issued = previews.get(request.previewHash);
+      const storedConfirmation = confirmations.get(request.confirmation.token);
+      if (
+        issued === undefined ||
+        JSON.stringify(releasePreviewFields(issued)) !== JSON.stringify(fields) ||
+        releasePreviewHash(fields) !== request.previewHash ||
+        storedConfirmation === undefined ||
+        storedConfirmation.previewHash !== request.confirmation.previewHash ||
+        storedConfirmation.authorizationRevision !==
+          request.confirmation.authorizationRevision ||
+        storedConfirmation.expiresAt !== request.confirmation.expiresAt ||
+        request.confirmation.previewHash !== request.previewHash ||
+        request.confirmation.authorizationRevision !== request.authorizationRevision ||
+        request.confirmation.expiresAt !== request.expiresAt
+      ) {
+        return {
+          status: "failed",
+          operationId: request.operationId,
+          errorClass: "invalid-input"
+        };
+      }
+      if (
+        request.authorizationRevision !==
+        stableId(
+          seed,
+          "authorization",
+          request.repository.owner,
+          request.repository.name
+        )
+      ) {
+        return {
+          status: "refused",
+          operationId: request.operationId,
+          errorClass: "authorization"
+        };
+      }
+      const previous = completedPublications.get(request.operationId);
+      if (previous !== undefined) {
+        if (previous.previewHash !== request.previewHash) {
+          return {
+            status: "refused",
+            operationId: request.operationId,
+            errorClass: "conflict"
+          };
+        }
+        return {
+          status: "duplicate",
+          operationId: request.operationId,
+          value: previous.value
+        };
+      }
+      if (clock.now().getTime() >= Date.parse(request.expiresAt)) {
+        return {
+          status: "failed",
+          operationId: request.operationId,
+          errorClass: "invalid-input"
+        };
+      }
+      const result = await engine.execute<PublishedRelease>({
         provider: "github",
         operation: "release.publish",
         operationId: request.operationId,
+        fingerprint: request.previewHash,
         resourceId: request.tag,
         createValue: () => ({
           tag: request.tag,
           url: `https://github.com/${request.repository.owner}/${request.repository.name}/releases/tag/${request.tag}`
         })
-      })
+      });
+      if (result.status === "completed" || result.status === "duplicate") {
+        completedPublications.set(request.operationId, {
+          previewHash: request.previewHash,
+          value: result.value
+        });
+      }
+      return result;
+    }
   };
 }
 
@@ -427,7 +616,7 @@ export function createMockRuntime(options: MockRuntimeOptions = {}): MockRuntime
   return {
     ledger,
     reader,
-    publisher: createPublisher(engine),
+    publisher: createPublisher(seed, engine, clock),
     drafter: createDrafter(options.draftProvider ?? "openai", engine),
     reviewer: createReviewer(options.reviewProvider ?? "anthropic", engine),
     billing: createBilling(engine),

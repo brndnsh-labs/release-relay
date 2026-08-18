@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": "b12d6511103756d61249a55d12ff83c8e21ed1c4",
+  "revision": "2c3d3af26d5eaec4a8f85bdaa4ae3946b7bd7ef9",
   "scenarios": [
     {
       "id": "bootstrap-phase",
@@ -74,6 +74,40 @@
         }
       ],
       "rationale": "The approved live-read composition root uses official Octokit REST methods for the documented source-gathering workflow; tests inject a fake and never execute the calls.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-18"
+    },
+    {
+      "id": "github-release-publisher",
+      "purpose": "Publish an explicitly confirmed GitHub release through the isolated write adapter.",
+      "source": {
+        "file": "packages/github-integration/src/publish.ts",
+        "anchor": "write-adapter-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.get",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.getReleaseByTag",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.createRelease",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The isolated Octokit writer performs the documented authorization, reconciliation, and confirmed release mutation calls; tests inject a fake and never execute them.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-18"
     }

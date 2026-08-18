@@ -67,3 +67,4 @@ export function assembleCandidates(
 }
 
 export * from "./live.js";
+export * from "./publish.js";
