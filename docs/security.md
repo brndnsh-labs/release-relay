@@ -33,6 +33,11 @@ Switching providers does not implicitly resend previous content. Asking a second
 
 Read authorization and write authorization are distinct. Repository selection comes from authenticated GitHub identity and current access, not an untrusted repository name submitted by a browser.
 
+The only Octokit construction path is the explicit live-read composition root.
+It receives an already-authorized token directly, fixes the API host to
+`https://api.github.com`, binds reads to the configured repository scope, and
+does not read environment variables, log the token, or expose the SDK client.
+
 Before publication, the application renders the exact repository, tag, title, and body; verifies current access; obtains a short-lived explicit confirmation; and binds that confirmation to an idempotent operation ID. A retry may repeat the identical operation but cannot change its target or content.
 
 Webhook payloads are verified against their raw bytes before parsing and are deduplicated by delivery identity plus payload hash. A duplicate delivery with different bytes is rejected.
