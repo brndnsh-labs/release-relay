@@ -38,6 +38,11 @@ Circular workspace dependencies are prohibited. Provider SDK types must not leak
 
 Mock mode is the default and must cover every product workflow. It uses deterministic provider responses, stable clocks and identifiers, and an append-only operation ledger. It performs no DNS lookups and needs no environment variables.
 
+The mock runtime is composed from the core ports and accepts scripted success,
+refusal, and failure outcomes for boundary tests. Its ledger contains operation
+IDs, provider names, operation names, statuses, safe resource IDs, error classes,
+and deterministic timestamps only.
+
 ### Live mode
 
 Live mode is a future development capability, not a production environment. It is entered through explicit configuration and provider-specific credentials. Read and write permissions remain distinct. Enabling live reads must not enable GitHub publication, Stripe mutation, or content-bearing AI calls automatically.

@@ -8,14 +8,14 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && pnpm --filter @release-relay/core build && pnpm --filter @release-relay/coverage-oracle build",
+    "build": "tsc -p tsconfig.build.json && pnpm --filter @release-relay/core build && pnpm --filter @release-relay/mock-runtime build && pnpm --filter @release-relay/coverage-oracle build",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "cycle:check": "cycle check",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
-    "test": "pnpm build && node --test dist/spec-contract.test.js packages/core/dist/ports.test.js packages/core/dist/workspace.test.js packages/coverage-oracle/dist/schema.test.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @release-relay/core typecheck && pnpm --filter @release-relay/coverage-oracle typecheck"
+    "test": "pnpm build && node --test dist/spec-contract.test.js packages/core/dist/ports.test.js packages/core/dist/workspace.test.js packages/mock-runtime/dist/index.test.js packages/coverage-oracle/dist/schema.test.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @release-relay/core typecheck && pnpm --filter @release-relay/mock-runtime typecheck && pnpm --filter @release-relay/coverage-oracle typecheck"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",
