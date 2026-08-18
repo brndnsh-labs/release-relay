@@ -18,6 +18,15 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/core:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/coverage-oracle:
     devDependencies:
       '@types/node':
