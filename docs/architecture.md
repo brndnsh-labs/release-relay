@@ -77,6 +77,10 @@ Every external operation receives an application-generated operation ID. Retries
 
 Each provider package owns SDK construction, raw response validation, error classification, redaction, and mapping to core values. Environment reads occur at the composition root and typed configuration is passed inward.
 
+The GitHub read adapter uses the registered Octokit REST methods for repository,
+comparison, pull request, issue, contributor, and release reads. Its test seam
+accepts an injected client; only the explicit live-read root constructs Octokit.
+
 Raw HTTP variants exist only where they represent realistic product code or a declared coverage scenario. No adapter accepts an arbitrary caller-provided base URL. Webhook handlers receive raw bytes for signature verification before parsing.
 
 ## Human confirmation boundary

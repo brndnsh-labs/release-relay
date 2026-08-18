@@ -65,3 +65,5 @@ export function assembleCandidates(
     .sort(compareIdentity)
     .map((candidate, order) => ({ ...candidate, order }));
 }
+
+export * from "./live.js";

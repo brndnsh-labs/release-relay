@@ -21,6 +21,61 @@
       "rationale": "Synthetic example that exercises the version-1 manifest shape and the anchor-resolution check.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-18"
+    },
+    {
+      "id": "github-read-adapter",
+      "purpose": "Read configured GitHub source material through the explicitly approved Octokit adapter.",
+      "source": {
+        "file": "packages/github-integration/src/live.ts",
+        "anchor": "read-adapter-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.get",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "pulls.list",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "issues.listForRepo",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.listContributors",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.listReleases",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The approved live-read composition root uses official Octokit REST methods for the documented source-gathering workflow; tests inject a fake and never execute the calls.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-18"
     }
   ]
 }
