@@ -8,14 +8,14 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && pnpm --filter @release-relay/coverage-oracle build",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "cycle:check": "cycle check",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
-    "test": "pnpm build && node --test dist/spec-contract.test.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "pnpm build && node --test dist/spec-contract.test.js packages/coverage-oracle/dist/schema.test.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @release-relay/coverage-oracle typecheck"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",

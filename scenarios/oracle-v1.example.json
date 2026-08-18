@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "revision": "b12d6511103756d61249a55d12ff83c8e21ed1c4",
+  "scenarios": [
+    {
+      "id": "bootstrap-phase",
+      "purpose": "Example manifest for the coverage-oracle validator; the bootstrap declares the repository phase at a unique anchor.",
+      "source": {
+        "file": "src/index.ts",
+        "anchor": "repositoryPhase"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.list",
+          "evidenceKind": "sdk-call",
+          "confidence": "supporting"
+        }
+      ],
+      "rationale": "Synthetic example that exercises the version-1 manifest shape and the anchor-resolution check.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-18"
+    }
+  ]
+}
