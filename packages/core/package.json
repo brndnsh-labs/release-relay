@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./dist/workspace.js"
+    ".": "./dist/index.js",
+    "./ports": "./dist/ports.js",
+    "./workspace": "./dist/workspace.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/workspace.test.js"
+    "test": "pnpm build && node --test dist/ports.test.js dist/workspace.test.js"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

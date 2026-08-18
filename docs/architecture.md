@@ -57,6 +57,10 @@ The intended domain ports are narrow and operation-oriented:
 - `OperationLedger` records safe metadata about attempted and completed external operations.
 
 Ports should express product operations, not mirror entire vendor SDK clients.
+Operation results are limited to `completed`, `duplicate`, `refused`, and `failed`,
+with an application operation ID and safe error class rather than raw provider data.
+Hosted Checkout or portal sessions do not imply membership state; membership is
+projected only from verified webhook events.
 
 ## State and hand-off
 
