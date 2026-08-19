@@ -56,6 +56,8 @@ Atomic scenarios vary one important dimension at a time. Composed scenarios comb
 
 The first composed scenario, `scenarios/composed/relay-deployment`, covers these matrix dimensions together: client construction through a cached singleton, dependency injection, and a class-held field; call expressions through bracket access and a non-null wrapper; module flow through named exports, a default export, a re-export barrel, and the unambiguous `#relay/*` path alias; deliberately reused `api`, `client`, and `http` names across files; and an ordinary-function `this`-rebinding negative whose rebound receiver cannot reach the class-held client.
 
+Raw HTTP coverage lives under `scenarios/atomic/http-*`: a full fixed provider URL, a base host plus path suffix, a template literal, and a narrow fetch wrapper, each reviewing an alertable `http-request` observation for a documented product operation. Negative and disposition controls live under `scenarios/negative-controls/`: unrelated Slack, Twilio, AWS, and Discord usage with their real hosts; local provider-named classes; an endpoint routing table; a shadowed provider import; a dynamic unresolved dispatcher (reviewed as uncertain, never a confident negative); a foreign-host gateway calling provider-like paths; and real SDK usage under test and fixture paths (demoted) beside provider-looking requests under generated and vendor paths (excluded).
+
 ## Negative controls
 
 Negative controls are first-class. They include:
