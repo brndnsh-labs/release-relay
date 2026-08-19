@@ -331,5 +331,26 @@ export function validateReport(input: unknown): ReportValidationResult {
   if (errors.length > 0) {
     return { ok: false, errors };
   }
-  return { ok: true, report: input as unknown as ScanReport };
+  if (version === 1) {
+    const report: ScanReportV1 = {
+      reportVersion: 1,
+      manifestVersion: 1,
+      releaseRelayRevision: input.releaseRelayRevision as string,
+      breakscopeRevision: input.breakscopeRevision as string,
+      ruleset: input.ruleset as string,
+      files: input.files as ScanReportV1["files"],
+      observations: input.observations as ScanReportV1["observations"]
+    };
+    return { ok: true, report };
+  }
+  const report: ScanReportV2 = {
+    reportVersion: 2,
+    manifestVersion: 1,
+    releaseRelayRevision: input.releaseRelayRevision as string,
+    breakscopeRevision: input.breakscopeRevision as string,
+    ruleset: input.ruleset as string,
+    files: input.files as ScanReportV2["files"],
+    observations: input.observations as ScanReportV2["observations"]
+  };
+  return { ok: true, report };
 }

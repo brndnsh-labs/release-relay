@@ -279,7 +279,18 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
   }
 
   if (errors.length > 0) return { ok: false, errors };
-  return { ok: true, snapshot: input as unknown as BreakscopeSnapshot };
+  const snapshot: BreakscopeSnapshot = {
+    snapshotVersion: 1,
+    repository: input.repository as string,
+    repositoryId: input.repositoryId as number,
+    releaseRelayRevision: input.releaseRelayRevision as string,
+    breakscopeRevision: input.breakscopeRevision as string,
+    ruleset: input.ruleset as string,
+    scan: input.scan as SnapshotScan,
+    files: input.files as SnapshotFile[],
+    observations: input.observations as SnapshotObservation[]
+  };
+  return { ok: true, snapshot };
 }
 
 export function mapConfidence(
