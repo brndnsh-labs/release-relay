@@ -293,11 +293,14 @@ export interface SponsorBilling {
   }): Promise<OperationResult<PortalSession>>;
 }
 
+// payloadHash lets a webhook projector detect a redelivered event id whose
+// raw bytes changed — see StripeWebhookProjector's dedup contract.
 export interface VerifiedWebhookEvent {
   eventId: string;
   eventCreatedAt: string;
   customerId: string;
   membershipState: MembershipState;
+  payloadHash: string;
 }
 
 export interface MembershipProjection {
@@ -307,6 +310,10 @@ export interface MembershipProjection {
   sourceEventCreatedAt: string;
 }
 
+// project() must be idempotent per eventId: redelivering the identical event
+// (same payloadHash) returns the original projection as "duplicate"; the same
+// eventId with a different payloadHash is refused as "conflict" rather than
+// silently applied.
 export interface StripeWebhookProjector {
   project(event: VerifiedWebhookEvent): Promise<OperationResult<MembershipProjection>>;
 }

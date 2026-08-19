@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { assembleCandidates } from "@release-relay/github-integration";
 import {
   citedDraftSourceIdentities,
+  projectMembership,
   releasePreviewHash,
   validateReleaseDraft
 } from "@release-relay/core";
@@ -644,20 +645,36 @@ function createBilling(engine: MockEngine): SponsorBilling {
 }
 
 function createWebhookProjector(engine: MockEngine): StripeWebhookProjector {
+  // A redelivered event id with a changed payload hash is refused before it
+  // ever reaches the ledger — mirrors createPublisher's previewHash guard,
+  // not the engine's own generic (and differently-classified) conflict path.
+  const seenPayloadHashes = new Map<string, string>();
+  const projections = new Map<string, MembershipProjection>();
+
   return {
-    project: async (event: VerifiedWebhookEvent) =>
-      engine.execute<MembershipProjection>({
+    project: async (event: VerifiedWebhookEvent) => {
+      const priorHash = seenPayloadHashes.get(event.eventId);
+      if (priorHash !== undefined && priorHash !== event.payloadHash) {
+        return {
+          status: "refused" as const,
+          operationId: event.eventId,
+          errorClass: "conflict" as const
+        };
+      }
+      seenPayloadHashes.set(event.eventId, event.payloadHash);
+      return engine.execute<MembershipProjection>({
         provider: "stripe",
         operation: "webhook.project",
         operationId: event.eventId,
         resourceId: event.customerId,
-        createValue: () => ({
-          customerId: event.customerId,
-          state: event.membershipState,
-          sourceEventId: event.eventId,
-          sourceEventCreatedAt: event.eventCreatedAt
-        })
-      })
+        createValue: () => {
+          const current = projections.get(event.customerId);
+          const outcome = projectMembership(current, event);
+          projections.set(event.customerId, outcome.projection);
+          return outcome.projection;
+        }
+      });
+    }
   };
 }
 

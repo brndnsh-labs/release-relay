@@ -205,6 +205,26 @@
       "rationale": "The explicit live-billing composition root uses official product, price, Checkout, and billing-portal SDK methods with per-resource idempotency keys and reuses matching resources instead of mutating an active price; tests inject a fake and never execute the calls.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "stripe-webhook-projection",
+      "purpose": "Verify a Stripe webhook's signature against the raw request body before any parsing, then project the limited subscription events that affect sponsor membership.",
+      "source": {
+        "file": "packages/stripe-integration/src/webhook.ts",
+        "anchor": "webhook-verify-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "webhooks.constructEvent",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The official Stripe SDK signature-verification method runs entirely offline against bytes already received; only a signature-verified event of a documented type is mapped and projected, deduplicated by event id plus payload hash. Tests use generateTestHeaderString to sign fixtures locally and never send or receive network traffic.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
