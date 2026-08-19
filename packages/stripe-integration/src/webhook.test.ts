@@ -103,6 +103,32 @@ test("a tampered payload against a valid signature is rejected safely", () => {
   assert.deepEqual(verifier.parse(tampered, header), { kind: "invalid-signature" });
 });
 
+test("an oversized payload is rejected before signature verification", () => {
+  const verifier = createStripeWebhookVerifier(stripe, webhookSecret);
+  let constructCalled = false;
+  const original = stripe.webhooks.constructEvent;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (stripe.webhooks as any).constructEvent = () => {
+    constructCalled = true;
+    throw new Error("constructEvent should not be called for oversized payload");
+  };
+  try {
+    const oversizedString = "a".repeat(1_000_001);
+    assert.deepEqual(verifier.parse(oversizedString, "t=123,v1=abc"), {
+      kind: "invalid-signature"
+    });
+    assert.equal(constructCalled, false);
+
+    const oversizedBuffer = Buffer.alloc(1_000_001, 97);
+    assert.deepEqual(verifier.parse(oversizedBuffer, "t=123,v1=abc"), {
+      kind: "invalid-signature"
+    });
+    assert.equal(constructCalled, false);
+  } finally {
+    (stripe.webhooks as any).constructEvent = original;
+  }
+});
+
 test("an undocumented event type is acknowledged as ignored without producing a verified event", () => {
   const verifier = createStripeWebhookVerifier(stripe, webhookSecret);
   const payload = subscriptionEventPayload({ type: "invoice.payment_succeeded" });
