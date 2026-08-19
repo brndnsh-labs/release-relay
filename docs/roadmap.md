@@ -6,6 +6,19 @@ GitHub milestones are the delivery epics and GitHub issues are the executable st
 
 Stories are intentionally small enough for a focused model to implement, test, review, and ship in one `/cycle`. Every story must retain the Why, Touches, Fix, Acceptance, Dependencies, and Non-goals sections from its issue.
 
+## Delivery status
+
+| Milestone | Status | Retrospective result |
+| --- | --- | --- |
+| M1 — Core and mock foundation | Complete | Domain contracts, provider ports, the oracle schema, and the operation ledger build and test without credentials or network access. |
+| M2 — GitHub release workspace | Complete | Mock-backed assembly, scoped live reads, and preview-bound idempotent publication remain separate capabilities. Malformed comparison and repository identities are rejected at the boundary. |
+| M3 — AI drafting and review | Complete | OpenAI drafting and Anthropic review retain provider/model provenance, validate structured output, cover refusal and invalid-output paths, and use injected clients in offline tests. Live evaluation remains a separate explicit action. |
+| M4 — Sponsor memberships | Complete | Money and membership contracts, idempotent Stripe operations, and raw-body verified webhook projection cover duplicate, failed, and out-of-order paths without trusting redirects or handling card data. Live Stripe mutations remain explicitly gated. |
+| M5 — Coverage expansion | Complete | The reviewed manifest covers product adapters plus atomic SDK, composed module-flow, raw HTTP, negative-control, demoted, excluded, and uncertain cases. The comparator reports each dimension independently without learning truth from detector output. |
+| M6 — Breakscope canary | Active | The offline comparator is complete. The first operational scan is blocked on a reviewed source-free Breakscope export path, healthy production preflight, and a fresh approval immediately before any repository-selection change. |
+
+The completion judgments above were rechecked on 2026-08-19 against the merged source, issue acceptance criteria, and a green current-head CI run. M3–M5 introduced no hosted Release Relay runtime, ambient credential dependency, persistence layer, or implicit live-provider activation, so the contracts still support the M6 boundary.
+
 ## M1 — Core and mock foundation
 
 Goal: establish strict domain contracts and a deterministic offline runtime before choosing a web framework or persistence layer.
@@ -77,10 +90,12 @@ Planned stories:
 2. Document and perform the read-only Breakscope GitHub App installation and first scan.
 3. Add a scheduled operational comparison that records both repository revisions and never writes an alert automatically.
 
+The exact operational boundary, current blockers, required evidence, and fresh approval stop are maintained in [`canary-runbook.md`](canary-runbook.md).
+
 Complete when a maintainer can distinguish a healthy matching scan from missing, unexpected, uncertain, excluded, or operationally failed results and reproduce a reported mismatch from pinned commits.
 
 ## Dependency order
 
-M1 is the only initially pickable milestone. Later milestones may be filed with `status:blocked` where their dependencies are concrete. `/cycle next --until-blocked` stops after the last issue in each milestone so the contract can be reviewed before the next layer begins.
+M1 was the only initially pickable milestone. M1–M5 are now complete; M6 work remains dependency-routed in the live tracker. `/cycle next --until-blocked` stops after the last issue in each milestone so the contract can be reviewed before the next layer begins.
 
 Architecture decisions that remain open are not hidden inside implementation issues. If a story reaches a framework, persistence, hosted-auth, live-call, billing, or deployment decision without an established contract, it stops and produces a narrowly framed `status:needs-decision` issue.
