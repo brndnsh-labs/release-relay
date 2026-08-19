@@ -94,9 +94,15 @@ recency — a merged pull request outside that recency window is conservatively
 excluded, and a linked issue outside the issues window is omitted from the
 issue summaries while the retained pull request still carries its link identity
 (documented fallbacks, never silent). A comparison response that claims commits
-but carries no parseable commit list, or whose repository identity cannot be
-established from its URL, is rejected as invalid input rather than treated as
-an empty range.
+but carries no valid commit list, has an unsupported or contradictory status,
+has a malformed commit count, repeats or truncates a full commit SHA, or whose
+repository identity cannot be established from its URL is rejected as invalid
+input rather than treated as an empty range. Counts through 250 must match the
+validated commit list exactly; larger unpaginated ranges use only the validated
+prefix GitHub returns and conservatively exclude the unreturned tail. Repository
+reads likewise require the response owner, name, and canonical GitHub URL to
+match the configured scope case-insensitively, then map back to that configured
+canonical scope.
 The separate GitHub write adapter uses `repos.get` for the current publication
 authorization check, `repos.getReleaseByTag` for reconciliation, and
 `repos.createRelease` only after preview hash, confirmation, expiry, and access

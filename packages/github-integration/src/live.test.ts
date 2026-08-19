@@ -41,15 +41,19 @@ function mergedPull(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function repositoryResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 42,
+    name: "project",
+    html_url: "https://github.com/example/project",
+    owner: { login: "example" },
+    ...overrides
+  };
+}
+
 function apiWith(overrides: Partial<GitHubApi> = {}): GitHubApi {
   return {
-    getRepository: () =>
-      response({
-        id: 42,
-        name: "project",
-        html_url: "https://github.com/example/project",
-        owner: { login: "example" }
-      }),
+    getRepository: () => response(repositoryResponse()),
     compareCommits: () => response(compareResponse()),
     listPullRequests: () =>
       response([
@@ -145,6 +149,7 @@ test("grounds contributors in range commits, not the all-time contributor list",
     compareCommits: () =>
       response(
         compareResponse({
+          total_commits: 4,
           commits: [
             {
               sha: RANGE_SHA_A,
@@ -261,7 +266,8 @@ test("rejects comparison responses whose repository identity cannot be establish
   for (const html_url of [
     undefined,
     "not a url",
-    "https://example.com/compare/a...b"
+    "https://example.com/example/project/compare/a...b",
+    "https://github.com/example/project/compare"
   ]) {
     const result = await compareWith(
       apiWith({
@@ -281,29 +287,115 @@ test("rejects comparison responses whose repository identity cannot be establish
   }
 });
 
-test("rejects comparison responses that claim commits but carry none", async () => {
-  const missing = await compareWith(
-    apiWith({
-      compareCommits: () => response({ status: "ahead", total_commits: 2 })
-    })
-  );
-  assert.deepEqual(missing, {
-    status: "failed",
-    operationId: "compare-1",
-    errorClass: "invalid-input"
-  });
+test("rejects malformed total_commits values instead of treating them as empty", async () => {
+  for (const total_commits of [undefined, "2", 1.5, -1, Number.MAX_SAFE_INTEGER + 1]) {
+    const result = await compareWith(
+      apiWith({
+        compareCommits: () => response(compareResponse({ total_commits }))
+      })
+    );
+    assert.deepEqual(result, {
+      status: "failed",
+      operationId: "compare-1",
+      errorClass: "invalid-input"
+    });
+  }
+});
 
-  const unparseable = await compareWith(
+test("rejects unsupported and contradictory comparison statuses", async () => {
+  for (const comparison of [
+    compareResponse({ status: undefined }),
+    compareResponse({ status: "sideways" }),
+    compareResponse({ status: "identical" }),
+    compareResponse({ status: "behind" }),
+    compareResponse({ status: "ahead", total_commits: 0, commits: [] }),
+    compareResponse({ status: "diverged", total_commits: 0, commits: [] })
+  ]) {
+    const result = await compareWith(
+      apiWith({ compareCommits: () => response(comparison) })
+    );
+    assert.deepEqual(result, {
+      status: "failed",
+      operationId: "compare-1",
+      errorClass: "invalid-input"
+    });
+  }
+});
+
+test("rejects malformed, duplicate, and count-inconsistent commit arrays", async () => {
+  for (const commits of [
+    undefined,
+    "not an array",
+    [],
+    [{ no_sha: true }, { sha: RANGE_SHA_B }],
+    ["junk", { sha: RANGE_SHA_B }],
+    [{ sha: "abc123" }, { sha: RANGE_SHA_B }],
+    [{ sha: "g".repeat(40) }, { sha: RANGE_SHA_B }],
+    [{ sha: RANGE_SHA_A }, { sha: RANGE_SHA_A.toUpperCase() }],
+    [{ sha: RANGE_SHA_A }]
+  ]) {
+    const result = await compareWith(
+      apiWith({
+        compareCommits: () => response(compareResponse({ commits }))
+      })
+    );
+    assert.deepEqual(result, {
+      status: "failed",
+      operationId: "compare-1",
+      errorClass: "invalid-input"
+    });
+  }
+
+  const truncatedLargeRange = await compareWith(
     apiWith({
       compareCommits: () =>
-        response(compareResponse({ commits: [{ no_sha: true }, "junk"] }))
+        response(
+          compareResponse({
+            total_commits: 251,
+            commits: [{ sha: RANGE_SHA_A }]
+          })
+        )
     })
   );
-  assert.deepEqual(unparseable, {
+  assert.deepEqual(truncatedLargeRange, {
     status: "failed",
     operationId: "compare-1",
     errorClass: "invalid-input"
   });
+});
+
+test("conservatively processes the validated 250-commit prefix of larger ranges", async () => {
+  const commits = [
+    { sha: RANGE_SHA_A },
+    ...Array.from({ length: 249 }, (_, index) => ({
+      sha: (index + 1).toString(16).padStart(40, "0")
+    }))
+  ];
+  const result = await compareWith(
+    apiWith({
+      compareCommits: () => response(compareResponse({ total_commits: 251, commits }))
+    })
+  );
+  assert.equal(result.status, "completed");
+  if (result.status !== "completed") return;
+  assert.deepEqual(
+    result.value.pullRequests.map((pullRequest) => pullRequest.sourceIdentity),
+    ["pull/1"]
+  );
+});
+
+test("accepts a valid behind comparison with no head-only commits", async () => {
+  const result = await compareWith(
+    apiWith({
+      compareCommits: () =>
+        response(compareResponse({ status: "behind", total_commits: 0, commits: [] }))
+    })
+  );
+  assert.equal(result.status, "completed");
+  if (result.status !== "completed") return;
+  assert.deepEqual(result.value.pullRequests, []);
+  assert.deepEqual(result.value.issues, []);
+  assert.deepEqual(result.value.contributors, []);
 });
 
 test("bounds pull request fan-out to maxPages", async () => {
@@ -341,6 +433,64 @@ test("maps repository reads and rejects repositories outside scope", async () =>
     }),
     { status: "refused", operationId: "scope-1", errorClass: "invalid-input" }
   );
+});
+
+test("maps case-insensitive repository responses to the configured canonical scope", async () => {
+  const canonicalRepository = { owner: "Example", name: "Project" };
+  const reader = createGitHubReader(
+    apiWith({
+      getRepository: () =>
+        response(
+          repositoryResponse({
+            owner: { login: "EXAMPLE" },
+            name: "PROJECT",
+            html_url: "https://github.com/example/project"
+          })
+        )
+    }),
+    { repository: canonicalRepository }
+  );
+  const result = await reader.getRepository({
+    operationId: "repo-case",
+    repository
+  });
+  assert.deepEqual(result, {
+    status: "completed",
+    operationId: "repo-case",
+    value: {
+      id: "42",
+      owner: "Example",
+      name: "Project",
+      url: "https://github.com/Example/Project"
+    }
+  });
+});
+
+test("rejects conflicting or unprovable repository response identities", async () => {
+  const malformedResponses = [
+    repositoryResponse({ owner: { login: "other" } }),
+    repositoryResponse({ name: "other" }),
+    repositoryResponse({ html_url: "https://github.com/other/project" }),
+    repositoryResponse({ html_url: "https://example.com/example/project" }),
+    repositoryResponse({ html_url: "https://github.com/example//project" }),
+    repositoryResponse({ html_url: "https://github.com/example/project/" }),
+    repositoryResponse({ html_url: undefined }),
+    repositoryResponse({ owner: {} })
+  ];
+  for (const repositoryData of malformedResponses) {
+    const reader = createGitHubReader(
+      apiWith({ getRepository: () => response(repositoryData) }),
+      { repository }
+    );
+    assert.deepEqual(
+      await reader.getRepository({ operationId: "repo-invalid", repository }),
+      {
+        status: "failed",
+        operationId: "repo-invalid",
+        errorClass: "invalid-input"
+      }
+    );
+  }
 });
 
 test("maps conflict, authorization, rate-limit, and malformed responses to safe errors", async () => {
