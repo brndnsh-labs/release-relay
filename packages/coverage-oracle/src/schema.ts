@@ -289,5 +289,10 @@ export function validateManifest(input: unknown): ValidationResult {
   if (errors.length > 0) {
     return { ok: false, errors };
   }
-  return { ok: true, manifest: input as unknown as OracleManifest };
+  const manifest: OracleManifest = {
+    version: 1,
+    revision: input.revision as string,
+    scenarios: input.scenarios as OracleScenario[]
+  };
+  return { ok: true, manifest };
 }
