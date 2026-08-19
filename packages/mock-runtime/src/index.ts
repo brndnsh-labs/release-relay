@@ -42,6 +42,7 @@ import type {
   SponsorBilling,
   SponsorTier,
   StructuredReleaseDraft,
+  SyncedSponsorTier,
   StripeWebhookProjector,
   VerifiedWebhookEvent,
   CheckoutSession
@@ -606,12 +607,16 @@ function createReviewer(provider: AiProvider, engine: MockEngine) {
 function createBilling(engine: MockEngine): SponsorBilling {
   return {
     syncTier: async (input: { operationId: OperationId; tier: SponsorTier }) =>
-      engine.execute({
+      engine.execute<SyncedSponsorTier>({
         provider: "stripe",
         operation: "tier.sync",
         operationId: input.operationId,
         resourceId: input.tier.id,
-        createValue: () => input.tier
+        createValue: () => ({
+          ...input.tier,
+          providerProductId: engine.id("product", input.operationId),
+          providerPriceId: engine.id("price", input.operationId)
+        })
       }),
     createCheckout: async (input) =>
       engine.execute<CheckoutSession>({
@@ -649,7 +654,8 @@ function createWebhookProjector(engine: MockEngine): StripeWebhookProjector {
         createValue: () => ({
           customerId: event.customerId,
           state: event.membershipState,
-          sourceEventId: event.eventId
+          sourceEventId: event.eventId,
+          sourceEventCreatedAt: event.eventCreatedAt
         })
       })
   };

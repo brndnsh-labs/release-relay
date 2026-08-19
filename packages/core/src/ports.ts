@@ -236,12 +236,37 @@ export const membershipStates = [
 
 export type MembershipState = (typeof membershipStates)[number];
 
+export const supportedCurrencies = ["usd", "eur", "gbp"] as const;
+
+export type Currency = (typeof supportedCurrencies)[number];
+
+// Integer minor units plus an explicit currency, never a float major-unit
+// amount — see billing.ts's createMoney for the smart constructor.
+export interface Money {
+  minorUnits: number;
+  currency: Currency;
+}
+
 export interface SponsorTier {
   id: string;
   name: string;
   description: string;
+  price: Money;
 }
 
+// The maintainer-configured tier, reconciled with the Stripe product/price
+// that syncTier actually created or reused. Keeping this distinct from
+// SponsorTier stops a merely-configured tier from being mistaken for one a
+// provider call has confirmed.
+export interface SyncedSponsorTier extends SponsorTier {
+  providerProductId: string;
+  providerPriceId: string;
+}
+
+// Browser-hosted session references only — deliberately no membership state
+// field. A redirect back from Checkout or the portal cannot by itself prove
+// billing succeeded; only projectMembership(VerifiedWebhookEvent) in
+// billing.ts may produce a MembershipProjection.
 export interface CheckoutSession {
   id: string;
   url: string;
@@ -256,7 +281,7 @@ export interface SponsorBilling {
   syncTier(input: {
     operationId: OperationId;
     tier: SponsorTier;
-  }): Promise<OperationResult<SponsorTier>>;
+  }): Promise<OperationResult<SyncedSponsorTier>>;
   createCheckout(input: {
     operationId: OperationId;
     tierId: string;
@@ -270,6 +295,7 @@ export interface SponsorBilling {
 
 export interface VerifiedWebhookEvent {
   eventId: string;
+  eventCreatedAt: string;
   customerId: string;
   membershipState: MembershipState;
 }
@@ -278,6 +304,7 @@ export interface MembershipProjection {
   customerId: string;
   state: MembershipState;
   sourceEventId: string;
+  sourceEventCreatedAt: string;
 }
 
 export interface StripeWebhookProjector {
