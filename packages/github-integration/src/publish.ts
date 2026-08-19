@@ -173,7 +173,10 @@ async function runResult<T>(
 }
 
 function sameRepository(left: RepositoryRef, right: RepositoryRef): boolean {
-  return left.owner === right.owner && left.name === right.name;
+  return (
+    left.owner.toLowerCase() === right.owner.toLowerCase() &&
+    left.name.toLowerCase() === right.name.toLowerCase()
+  );
 }
 
 function cloneRepository(repository: RepositoryRef): RepositoryRef {
