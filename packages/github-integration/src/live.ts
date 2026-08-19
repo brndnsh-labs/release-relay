@@ -15,7 +15,10 @@ import type {
 
 const PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 3;
+const COMPARISON_COMMIT_LIMIT = 250;
 const GITHUB_API_BASE_URL = "https://api.github.com";
+const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/i;
+const COMPARISON_STATUSES = new Set(["ahead", "behind", "diverged", "identical"]);
 
 // ponytail: closing keywords + "Reverts owner/repo#N" body scans cover the
 // documented derivation rules; a commit-to-PR GraphQL join is the upgrade path
@@ -83,7 +86,7 @@ function stringValue(record: Record<string, unknown>, key: string): string | und
 }
 
 function numberValue(record: Record<string, unknown>, key: string): number | undefined {
-  return typeof record[key] === "number" && Number.isInteger(record[key])
+  return typeof record[key] === "number" && Number.isSafeInteger(record[key])
     ? record[key]
     : undefined;
 }
@@ -144,8 +147,8 @@ async function run<T>(
 
 function checkScope(scope: GitHubReadScope, repository: RepositoryRef): boolean {
   return (
-    repository.owner === scope.repository.owner &&
-    repository.name === scope.repository.name
+    repository.owner.toLowerCase() === scope.repository.owner.toLowerCase() &&
+    repository.name.toLowerCase() === scope.repository.name.toLowerCase()
   );
 }
 
@@ -173,7 +176,60 @@ async function pageThrough<TParams extends PageParams>(
   return items;
 }
 
-function mapRepository(data: Record<string, unknown>): RepositorySummary {
+function githubRepositoryFromUrl(
+  value: string,
+  expectedSuffix: readonly string[] = []
+): RepositoryRef | undefined {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "github.com" ||
+    url.port !== "" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    return undefined;
+  }
+  const segments = url.pathname.split("/");
+  if (
+    segments[0] !== "" ||
+    segments[1] === undefined ||
+    segments[1] === "" ||
+    segments[2] === undefined ||
+    segments[2] === "" ||
+    !expectedSuffix.every((segment, index) => segments[index + 3] === segment)
+  ) {
+    return undefined;
+  }
+  if (
+    (expectedSuffix.length === 0 && segments.length !== 3) ||
+    (expectedSuffix.length > 0 &&
+      (segments.length <= 3 + expectedSuffix.length ||
+        segments.slice(3 + expectedSuffix.length).some((segment) => segment === "")))
+  ) {
+    return undefined;
+  }
+  return { owner: segments[1], name: segments[2] };
+}
+
+function sameRepository(left: RepositoryRef, right: RepositoryRef): boolean {
+  return (
+    left.owner.toLowerCase() === right.owner.toLowerCase() &&
+    left.name.toLowerCase() === right.name.toLowerCase()
+  );
+}
+
+function mapRepository(
+  data: Record<string, unknown>,
+  scope: RepositoryRef
+): RepositorySummary {
   const owner = isRecord(data.owner) ? stringValue(data.owner, "login") : undefined;
   const id = numberValue(data, "id");
   const name = stringValue(data, "name");
@@ -186,7 +242,21 @@ function mapRepository(data: Record<string, unknown>): RepositorySummary {
   ) {
     throw new AdapterError("invalid-input");
   }
-  return { owner, name, id: String(id), url };
+  const responseRepository = { owner, name };
+  const urlRepository = githubRepositoryFromUrl(url);
+  if (
+    !sameRepository(responseRepository, scope) ||
+    urlRepository === undefined ||
+    !sameRepository(urlRepository, scope)
+  ) {
+    throw new AdapterError("invalid-input");
+  }
+  return {
+    owner: scope.owner,
+    name: scope.name,
+    id: String(id),
+    url: `https://github.com/${scope.owner}/${scope.name}`
+  };
 }
 
 function escapeRegExp(value: string): string {
@@ -202,16 +272,72 @@ function checkComparisonIdentity(
   scope: RepositoryRef
 ): void {
   const url = stringValue(comparison, "html_url");
-  const match = url?.match(/^https:\/\/[^/]+\/([^/]+)\/([^/]+)\/compare\//);
-  const [, owner, name] = match ?? [];
+  const repository =
+    url === undefined ? undefined : githubRepositoryFromUrl(url, ["compare"]);
+  if (repository === undefined || !sameRepository(repository, scope)) {
+    throw new AdapterError("invalid-input");
+  }
+}
+
+interface ParsedComparison {
+  rangeShas: ReadonlySet<string>;
+  rangeContributors: ReadonlyMap<string, ContributorSummary>;
+  totalCommits: number;
+}
+
+function parseComparison(
+  comparison: Record<string, unknown>,
+  scope: RepositoryRef
+): ParsedComparison {
+  checkComparisonIdentity(comparison, scope);
+  const status = stringValue(comparison, "status");
+  const totalCommits = numberValue(comparison, "total_commits");
   if (
-    owner === undefined ||
-    name === undefined ||
-    owner.toLowerCase() !== scope.owner.toLowerCase() ||
-    name.toLowerCase() !== scope.name.toLowerCase()
+    status === undefined ||
+    !COMPARISON_STATUSES.has(status) ||
+    totalCommits === undefined ||
+    totalCommits < 0
   ) {
     throw new AdapterError("invalid-input");
   }
+
+  const commits = comparison.commits;
+  if (commits !== undefined && !Array.isArray(commits)) {
+    throw new AdapterError("invalid-input");
+  }
+  const commitItems = commits ?? [];
+  if (
+    (totalCommits > 0 && commitItems.length === 0) ||
+    (totalCommits <= COMPARISON_COMMIT_LIMIT && commitItems.length !== totalCommits) ||
+    (totalCommits > COMPARISON_COMMIT_LIMIT &&
+      commitItems.length !== COMPARISON_COMMIT_LIMIT) ||
+    ((status === "identical" || status === "behind") && totalCommits !== 0) ||
+    ((status === "ahead" || status === "diverged") && totalCommits === 0)
+  ) {
+    throw new AdapterError("invalid-input");
+  }
+
+  const rangeShas = new Set<string>();
+  const rangeContributors = new Map<string, ContributorSummary>();
+  for (const item of commitItems) {
+    if (!isRecord(item)) throw new AdapterError("invalid-input");
+    const sha = stringValue(item, "sha");
+    if (sha === undefined || !FULL_COMMIT_SHA.test(sha)) {
+      throw new AdapterError("invalid-input");
+    }
+    const normalizedSha = sha.toLowerCase();
+    if (rangeShas.has(normalizedSha)) throw new AdapterError("invalid-input");
+    rangeShas.add(normalizedSha);
+    if (isRecord(item.author)) {
+      const identity = stringValue(item.author, "login");
+      const url = stringValue(item.author, "html_url");
+      if (identity !== undefined && url !== undefined) {
+        rangeContributors.set(identity, { identity, url });
+      }
+    }
+  }
+
+  return { rangeShas, rangeContributors, totalCommits };
 }
 
 interface LivePullRequest {
@@ -303,7 +429,8 @@ export function createGitHubReader(
               owner: scope.repository.owner,
               repo: scope.repository.name
             })
-          )
+          ),
+          scope.repository
         )
       );
     },
@@ -322,29 +449,15 @@ export function createGitHubReader(
             head: range.head
           })
         );
-        checkComparisonIdentity(comparison, scope.repository);
+        const { rangeShas, rangeContributors, totalCommits } = parseComparison(
+          comparison,
+          scope.repository
+        );
         const base = { owner: scope.repository.owner, repo: scope.repository.name };
 
         // ponytail: the unpaginated compare response caps commits[] at 250;
         // ranges beyond that under-report SHAs and conservatively exclude the
         // tail PRs. Paginate compareCommits if such ranges become real.
-        const rangeShas = new Set<string>();
-        const rangeContributors = new Map<string, ContributorSummary>();
-        for (const item of Array.isArray(comparison.commits)
-          ? comparison.commits
-          : []) {
-          if (!isRecord(item)) continue;
-          const sha = stringValue(item, "sha");
-          if (sha !== undefined) rangeShas.add(sha);
-          if (isRecord(item.author)) {
-            const identity = stringValue(item.author, "login");
-            const url = stringValue(item.author, "html_url");
-            if (identity !== undefined && url !== undefined) {
-              rangeContributors.set(identity, { identity, url });
-            }
-          }
-        }
-
         // Prior releases stay separated as context; they can never become
         // candidates regardless of range contents.
         const priorReleases = (
@@ -356,19 +469,10 @@ export function createGitHubReader(
 
         // An identical or commit-less range selects nothing, even when
         // repository-wide endpoints contain old closed work. A response that
-        // claims commits but carries no parseable commit list is malformed,
-        // not empty — reject it loudly instead of silently dropping every
-        // candidate.
-        const totalCommits = numberValue(comparison, "total_commits") ?? 0;
-        if (totalCommits > 0 && !Array.isArray(comparison.commits)) {
-          throw new AdapterError("invalid-input");
-        }
-        if (
-          comparison.status === "identical" ||
-          totalCommits === 0 ||
-          rangeShas.size === 0
-        ) {
-          if (totalCommits > 0) throw new AdapterError("invalid-input");
+        // claims commits but carries no valid, count-consistent commit list is
+        // malformed, not empty — reject it loudly instead of silently dropping
+        // every candidate.
+        if (totalCommits === 0) {
           return {
             range,
             pullRequests: [],
@@ -395,7 +499,7 @@ export function createGitHubReader(
           if (mapped === undefined || !mapped.summary.merged) continue;
           if (
             mapped.mergeCommitSha !== undefined &&
-            rangeShas.has(mapped.mergeCommitSha)
+            rangeShas.has(mapped.mergeCommitSha.toLowerCase())
           ) {
             retained.push(mapped);
           }
