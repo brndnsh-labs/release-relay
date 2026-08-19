@@ -129,13 +129,14 @@ The normalized scan report is the versioned interchange between Breakscope and t
 coverage-oracle validate <manifest.json> [--check-revision]
 coverage-oracle validate-report <report.json>
 coverage-oracle compare <manifest.json> <report.json> [--json]
+coverage-oracle normalize <manifest.json> <breakscope-snapshot.json> --breakscope-revision <full-sha> [--output <path>]
 ```
 
-`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file or anchor is missing or duplicated in that Git tree; it performs no network fetch. `compare` exits `0` only when there are no `missing`, `mismatched`, or `unexpected` findings; `unresolved` (uncertain) never forces failure. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
+`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file or anchor is missing or duplicated in that Git tree; it performs no network fetch. `normalize` validates the versioned source-free Breakscope snapshot (`scenarios/snapshot-v1.example.json`), requires exact repository `brndnsh-labs/release-relay` (ID `1338698763`), `releaseRelayRevision == manifest.revision == HEAD`, `breakscopeRevision` (flag) and `ruleset` (`typescript-deterministic-v5`) identities, `scan.status == completed`, per-file `scanned`/`excluded` dispositions for every manifest source, and anchors that appear exactly once at the pinned revision and are covered by exactly one snapshot observation's `lineStart`–`lineEnd` range; maps numeric confidence through the reviewed `0.9/0.5` thresholds to `alertable/supporting/demoted` and emits deterministic `reportVersion:1` JSON (sorted, validated) or fails closed without partial output. `compare` exits `0` only when there are no `missing`, `mismatched`, or `unexpected` findings; `unresolved` (uncertain) never forces failure. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
 
 ### Runbook
 
-A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate --check-revision` and `coverage-oracle compare` against the pinned manifest and the normalized report. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report is synthetic and must never be generated from current detector output.
+A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate --check-revision`, `coverage-oracle normalize <manifest> <snapshot> --breakscope-revision <sha>`, and `coverage-oracle compare` against the pinned manifest and the normalized report. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report and snapshot are synthetic and must never be generated from current detector output.
 
 ## Reports
 

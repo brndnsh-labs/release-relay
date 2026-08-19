@@ -1,0 +1,42 @@
+{
+  "snapshotVersion": 1,
+  "repository": "brndnsh-labs/release-relay",
+  "repositoryId": 1338698763,
+  "releaseRelayRevision": "3eb4ee65f7e2c7045301144622edab53f0ab8a54",
+  "breakscopeRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "ruleset": "typescript-deterministic-v5",
+  "scan": {
+    "id": "scan-00000000-0000-0000-0000-000000000001",
+    "status": "completed",
+    "completedAt": "2026-08-19T12:00:00.000Z"
+  },
+  "files": [
+    { "file": "src/index.ts", "disposition": "scanned" },
+    { "file": "packages/github-integration/src/publish.ts", "disposition": "scanned" },
+    {
+      "file": "scenarios/negative-controls/path-dispositions/src/generated/provider-snapshot.ts",
+      "disposition": "excluded",
+      "reason": "generated source path"
+    }
+  ],
+  "observations": [
+    {
+      "file": "src/index.ts",
+      "lineStart": 5,
+      "lineEnd": 5,
+      "provider": "github",
+      "identifier": "repos.list",
+      "evidenceKind": "sdk-call",
+      "confidence": 0.73
+    },
+    {
+      "file": "packages/github-integration/src/publish.ts",
+      "lineStart": 620,
+      "lineEnd": 630,
+      "provider": "github",
+      "identifier": "repos.createRelease",
+      "evidenceKind": "sdk-call",
+      "confidence": 0.96
+    }
+  ]
+}

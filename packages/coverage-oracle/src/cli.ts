@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { checkSourceAnchors } from "./anchors.js";
 import { compareReports, formatComparison } from "./compare.js";
+import { normalizeSnapshot } from "./normalize.js";
 import { validateReport } from "./report.js";
 import { checkRevisionAnchors } from "./revision.js";
 import { validateManifest } from "./schema.js";
@@ -10,7 +11,8 @@ const USAGE = [
   "usage:",
   "  coverage-oracle validate <manifest.json> [--check-revision]",
   "  coverage-oracle validate-report <report.json>",
-  "  coverage-oracle compare <manifest.json> <report.json> [--json]"
+  "  coverage-oracle compare <manifest.json> <report.json> [--json]",
+  "  coverage-oracle normalize <manifest.json> <breakscope-snapshot.json> --breakscope-revision <full-sha> [--output <path>]"
 ].join("\n");
 
 async function readJson(
@@ -36,6 +38,9 @@ function parseArgs(args: string[]): {
   command: string;
   inputFile: string;
   reportFile?: string;
+  snapshotFile?: string;
+  breakscopeRevision?: string;
+  output?: string;
   json: boolean;
   checkRevision: boolean;
 } | null {
@@ -60,9 +65,7 @@ function parseArgs(args: string[]): {
     return null;
   }
   if (command === "validate-report") {
-    if (args.length !== 2) {
-      return null;
-    }
+    if (args.length !== 2) return null;
     return { command, inputFile: args[1] as string, json: false, checkRevision: false };
   }
   if (command === "compare") {
@@ -81,6 +84,35 @@ function parseArgs(args: string[]): {
         inputFile: args[1] as string,
         reportFile: args[2] as string,
         json: true,
+        checkRevision: false
+      };
+    }
+    return null;
+  }
+  if (command === "normalize") {
+    if (args.length < 5) return null;
+    const manifest = args[1] as string;
+    const snapshot = args[2] as string;
+    if (args[3] !== "--breakscope-revision") return null;
+    const rev = args[4] as string;
+    if (args.length === 5) {
+      return {
+        command,
+        inputFile: manifest,
+        snapshotFile: snapshot,
+        breakscopeRevision: rev,
+        json: false,
+        checkRevision: false
+      };
+    }
+    if (args.length === 7 && args[5] === "--output") {
+      return {
+        command,
+        inputFile: manifest,
+        snapshotFile: snapshot,
+        breakscopeRevision: rev,
+        output: args[6] as string,
+        json: false,
         checkRevision: false
       };
     }
@@ -145,6 +177,41 @@ async function main(): Promise<number> {
     process.stdout.write(
       `valid: ${inputFile} (${result.manifest.scenarios.length} scenarios)\n`
     );
+    return 0;
+  }
+
+  if (command === "normalize") {
+    const snapshotFile = parsed.snapshotFile as string;
+    const breakscopeRevision = parsed.breakscopeRevision as string;
+    const output = parsed.output as string | undefined;
+    const snapshotJson = await readJson(snapshotFile);
+    if (!snapshotJson.ok) {
+      process.stderr.write(`${snapshotJson.error}\n`);
+      return 1;
+    }
+    const normalized = await normalizeSnapshot(
+      result.manifest,
+      snapshotJson.input,
+      breakscopeRevision,
+      process.cwd()
+    );
+    if (!normalized.ok) {
+      for (const error of normalized.errors) {
+        process.stderr.write(`error: ${error}\n`);
+      }
+      return 1;
+    }
+    const outputJson = `${JSON.stringify(normalized.report, null, 2)}\n`;
+    if (output !== undefined) {
+      try {
+        await writeFile(output, outputJson, "utf8");
+      } catch {
+        process.stderr.write(`error: could not write ${output}\n`);
+        return 1;
+      }
+    } else {
+      process.stdout.write(outputJson);
+    }
     return 0;
   }
 
