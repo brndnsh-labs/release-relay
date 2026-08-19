@@ -225,6 +225,66 @@
       "rationale": "The official Stripe SDK signature-verification method runs entirely offline against bytes already received; only a signature-verified event of a documented type is mapped and projected, deduplicated by event id plus payload hash. Tests use generateTestHeaderString to sign fixtures locally and never send or receive network traffic.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "github-atomic-maintainer-cli",
+      "purpose": "Isolate a maintainer CLI shape that reads a comparison range through a function-local, directly constructed Octokit client rather than Release Relay's injected read adapter.",
+      "source": {
+        "file": "scenarios/atomic/github-maintainer-cli/src/index.ts",
+        "anchor": "maintainer-cli-read-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises a direct-construction client shape distinct from packages/github-integration/src/live.ts's injected adapter; the code never runs and the token is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "github-atomic-release-helper",
+      "purpose": "Isolate a maintainer helper that prepares a create-release call through a class-held Octokit client field, varying the client-construction shape from the other atomic GitHub scenarios and the product adapter.",
+      "source": {
+        "file": "scenarios/atomic/github-release-helper/src/index.ts",
+        "anchor": "release-helper-write-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.createRelease",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises the class-field client-construction shape; the call is only ever prepared, never sent, and the workspace has no runtime script or test that invokes it.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "github-atomic-unrelated-negative",
+      "purpose": "A deliberate same-provider negative: real GitHub SDK usage for an operation outside Release Relay's documented product workflow, so it is not conflated with the release-publication call site.",
+      "source": {
+        "file": "scenarios/atomic/github-unrelated-negative/src/index.ts",
+        "anchor": "unrelated-negative-read-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "gists.listForUser",
+          "evidenceKind": "sdk-call",
+          "confidence": "supporting"
+        }
+      ],
+      "rationale": "This call is genuine, correctly attributed GitHub SDK evidence, but it is deliberately unrelated to any Release Relay product operation (repository identity, comparisons, pull requests, issues, contributors, releases, or the confirmed release write), so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for product-critical call sites.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
