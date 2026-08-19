@@ -140,15 +140,17 @@ function checkAnchorHygiene(where: string, anchor: string, errors: string[]): vo
   }
 }
 
-function validateFiles(input: Record<string, unknown>, errors: string[]): void {
+function validateFiles(input: Record<string, unknown>, errors: string[]): ReportFile[] {
+  const validated: ReportFile[] = [];
   if (!Array.isArray(input.files)) {
     errors.push("report.files must be an array");
-    return;
+    return validated;
   }
 
   const seenFiles = new Set<string>();
   for (const [index, rawFile] of input.files.entries()) {
     const where = `report.files[${index}]`;
+    const entryErrorsBefore = errors.length;
     if (!isRecord(rawFile)) {
       errors.push(`${where} must be an object`);
       continue;
@@ -164,17 +166,41 @@ function validateFiles(input: Record<string, unknown>, errors: string[]): void {
     }
 
     const disposition = rawFile.disposition;
+    let validatedDisposition: FileDisposition | undefined;
+    let validatedReason: string | undefined;
     if (
       typeof disposition !== "string" ||
-      !fileDispositions.includes(disposition as FileDisposition)
+      !(fileDispositions as readonly string[]).includes(disposition)
     ) {
       errors.push(`${where}.disposition must be one of ${fileDispositions.join(", ")}`);
-    } else if (disposition === "excluded") {
-      requireNonEmptyString(where, rawFile.reason, "reason", errors);
-    } else if (rawFile.reason !== undefined) {
-      errors.push(`${where}.reason must not be present for disposition scanned`);
+    } else {
+      validatedDisposition = disposition === "excluded" ? "excluded" : "scanned";
+      if (disposition === "excluded") {
+        const r = requireNonEmptyString(where, rawFile.reason, "reason", errors);
+        if (r !== undefined) validatedReason = r;
+      } else if (rawFile.reason !== undefined) {
+        errors.push(`${where}.reason must not be present for disposition scanned`);
+      }
+    }
+    if (
+      errors.length === entryErrorsBefore &&
+      file !== undefined &&
+      validatedDisposition !== undefined
+    ) {
+      if (validatedDisposition === "excluded") {
+        if (validatedReason !== undefined) {
+          validated.push({
+            file,
+            disposition: validatedDisposition,
+            reason: validatedReason
+          });
+        }
+      } else {
+        validated.push({ file, disposition: validatedDisposition });
+      }
     }
   }
+  return validated;
 }
 
 function validateObservationCommon(
@@ -204,21 +230,44 @@ function validateObservationCommon(
 
 function validateObservations(
   input: Record<string, unknown>,
+  version: 1,
+  errors: string[]
+): ReportObservationV1[];
+function validateObservations(
+  input: Record<string, unknown>,
+  version: 2,
+  errors: string[]
+): ReportObservationV2[];
+function validateObservations(
+  input: Record<string, unknown>,
   version: 1 | 2,
   errors: string[]
-): void {
+): ReportObservationV1[] | ReportObservationV2[] {
+  const validatedV1: ReportObservationV1[] = [];
+  const validatedV2: ReportObservationV2[] = [];
   if (!Array.isArray(input.observations)) {
     errors.push("report.observations must be an array");
-    return;
+    return version === 1 ? validatedV1 : validatedV2;
   }
 
   const seenKeys = new Set<string>();
   for (const [index, rawObservation] of input.observations.entries()) {
     const where = `report.observations[${index}]`;
+    const entryErrorsBefore = errors.length;
     if (!isRecord(rawObservation)) {
       errors.push(`${where} must be an object`);
       continue;
     }
+
+    let fileVal: string | undefined;
+    let providerVal: Provider | undefined;
+    let identifierVal: string | undefined;
+    let evidenceKindVal: string | undefined;
+    let confidenceVal: ConfidenceBand | undefined;
+    let anchorVal: string | undefined;
+    let lineVal: number | undefined;
+    let lineStartVal: number | undefined;
+    let lineEndVal: number | undefined;
 
     if (version === 1) {
       rejectUnknownKeys(where, rawObservation, OBSERVATION_V1_KEYS, errors);
@@ -228,13 +277,18 @@ function validateObservations(
         "anchor",
         errors
       );
-      if (anchor !== undefined) checkAnchorHygiene(where, anchor, errors);
+      if (anchor !== undefined) {
+        anchorVal = anchor;
+        checkAnchorHygiene(where, anchor, errors);
+      }
       if (
         typeof rawObservation.line !== "number" ||
         !Number.isInteger(rawObservation.line) ||
         rawObservation.line < 1
       ) {
         errors.push(`${where}.line must be a positive integer`);
+      } else {
+        lineVal = rawObservation.line;
       }
     } else {
       rejectUnknownKeys(where, rawObservation, OBSERVATION_V2_KEYS, errors);
@@ -244,6 +298,8 @@ function validateObservations(
         rawObservation.lineStart < 1
       ) {
         errors.push(`${where}.lineStart must be a positive integer`);
+      } else {
+        lineStartVal = rawObservation.lineStart;
       }
       if (
         typeof rawObservation.lineEnd !== "number" ||
@@ -251,6 +307,8 @@ function validateObservations(
         rawObservation.lineEnd < 1
       ) {
         errors.push(`${where}.lineEnd must be a positive integer`);
+      } else {
+        lineEndVal = rawObservation.lineEnd;
       }
       if (
         typeof rawObservation.lineStart === "number" &&
@@ -261,7 +319,44 @@ function validateObservations(
       }
     }
 
-    validateObservationCommon(where, rawObservation, errors);
+    const file = requireNonEmptyString(where, rawObservation.file, "file", errors);
+    if (file !== undefined) fileVal = file;
+
+    if (
+      typeof rawObservation.provider !== "string" ||
+      !(providers as readonly string[]).includes(rawObservation.provider as string)
+    ) {
+      errors.push(`${where}.provider must be one of ${providers.join(", ")}`);
+    } else {
+      providerVal = rawObservation.provider as Provider;
+    }
+
+    const identifier = requireNonEmptyString(
+      where,
+      rawObservation.identifier,
+      "identifier",
+      errors
+    );
+    if (identifier !== undefined) identifierVal = identifier;
+
+    const evidenceKind = requireNonEmptyString(
+      where,
+      rawObservation.evidenceKind,
+      "evidenceKind",
+      errors
+    );
+    if (evidenceKind !== undefined) evidenceKindVal = evidenceKind;
+
+    if (
+      typeof rawObservation.confidence !== "string" ||
+      !(confidenceBands as readonly string[]).includes(
+        rawObservation.confidence as string
+      )
+    ) {
+      errors.push(`${where}.confidence must be one of ${confidenceBands.join(", ")}`);
+    } else {
+      confidenceVal = rawObservation.confidence as ConfidenceBand;
+    }
 
     if (
       typeof rawObservation.file === "string" &&
@@ -290,7 +385,42 @@ function validateObservations(
       }
       seenKeys.add(key);
     }
+
+    if (errors.length !== entryErrorsBefore) continue;
+    if (
+      fileVal === undefined ||
+      providerVal === undefined ||
+      identifierVal === undefined ||
+      evidenceKindVal === undefined ||
+      confidenceVal === undefined
+    ) {
+      continue;
+    }
+    if (version === 1) {
+      if (anchorVal === undefined || lineVal === undefined) continue;
+      validatedV1.push({
+        file: fileVal,
+        anchor: anchorVal,
+        line: lineVal,
+        provider: providerVal,
+        identifier: identifierVal,
+        evidenceKind: evidenceKindVal,
+        confidence: confidenceVal
+      });
+    } else {
+      if (lineStartVal === undefined || lineEndVal === undefined) continue;
+      validatedV2.push({
+        file: fileVal,
+        lineStart: lineStartVal,
+        lineEnd: lineEndVal,
+        provider: providerVal,
+        identifier: identifierVal,
+        evidenceKind: evidenceKindVal,
+        confidence: confidenceVal
+      });
+    }
   }
+  return version === 1 ? validatedV1 : validatedV2;
 }
 
 export function validateReport(input: unknown): ReportValidationResult {
@@ -309,6 +439,7 @@ export function validateReport(input: unknown): ReportValidationResult {
     errors.push("report.manifestVersion must be the integer 1");
   }
 
+  let validatedReleaseRelayRevision: string | undefined;
   if (
     typeof input.releaseRelayRevision !== "string" ||
     !FULL_SHA.test(input.releaseRelayRevision)
@@ -316,17 +447,31 @@ export function validateReport(input: unknown): ReportValidationResult {
     errors.push(
       "report.releaseRelayRevision must be a full 40-character git commit SHA"
     );
+  } else {
+    validatedReleaseRelayRevision = input.releaseRelayRevision;
   }
+  let validatedBreakscopeRevision: string | undefined;
   if (
     typeof input.breakscopeRevision !== "string" ||
     !FULL_SHA.test(input.breakscopeRevision)
   ) {
     errors.push("report.breakscopeRevision must be a full 40-character git commit SHA");
+  } else {
+    validatedBreakscopeRevision = input.breakscopeRevision;
   }
 
-  requireNonEmptyString("report", input.ruleset, "ruleset", errors);
-  validateFiles(input, errors);
-  if (version === 1 || version === 2) validateObservations(input, version, errors);
+  let validatedRuleset: string | undefined;
+  const ruleset = requireNonEmptyString("report", input.ruleset, "ruleset", errors);
+  if (ruleset !== undefined) validatedRuleset = ruleset;
+
+  const validatedFiles = validateFiles(input, errors);
+  let validatedObservationsV1: ReportObservationV1[] = [];
+  let validatedObservationsV2: ReportObservationV2[] = [];
+  if (version === 1) {
+    validatedObservationsV1 = validateObservations(input, 1, errors);
+  } else if (version === 2) {
+    validatedObservationsV2 = validateObservations(input, 2, errors);
+  }
 
   if (errors.length > 0) {
     return { ok: false, errors };
@@ -335,22 +480,22 @@ export function validateReport(input: unknown): ReportValidationResult {
     const report: ScanReportV1 = {
       reportVersion: 1,
       manifestVersion: 1,
-      releaseRelayRevision: input.releaseRelayRevision as string,
-      breakscopeRevision: input.breakscopeRevision as string,
-      ruleset: input.ruleset as string,
-      files: input.files as ScanReportV1["files"],
-      observations: input.observations as ScanReportV1["observations"]
+      releaseRelayRevision: validatedReleaseRelayRevision!,
+      breakscopeRevision: validatedBreakscopeRevision!,
+      ruleset: validatedRuleset!,
+      files: validatedFiles,
+      observations: validatedObservationsV1
     };
     return { ok: true, report };
   }
   const report: ScanReportV2 = {
     reportVersion: 2,
     manifestVersion: 1,
-    releaseRelayRevision: input.releaseRelayRevision as string,
-    breakscopeRevision: input.breakscopeRevision as string,
-    ruleset: input.ruleset as string,
-    files: input.files as ScanReportV2["files"],
-    observations: input.observations as ScanReportV2["observations"]
+    releaseRelayRevision: validatedReleaseRelayRevision!,
+    breakscopeRevision: validatedBreakscopeRevision!,
+    ruleset: validatedRuleset!,
+    files: validatedFiles,
+    observations: validatedObservationsV2
   };
   return { ok: true, report };
 }

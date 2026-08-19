@@ -146,12 +146,17 @@ export function validateManifest(input: unknown): ValidationResult {
   const errors: string[] = [];
   rejectUnknownKeys("manifest", input, MANIFEST_KEYS, errors);
 
+  let validatedRevision: string | undefined;
+  const validatedScenarios: OracleScenario[] = [];
+
   if (input.version !== 1) {
     errors.push("manifest.version must be the integer 1");
   }
 
   if (typeof input.revision !== "string" || !FULL_SHA.test(input.revision)) {
     errors.push("manifest.revision must be a full 40-character git commit SHA");
+  } else {
+    validatedRevision = input.revision;
   }
 
   if (!Array.isArray(input.scenarios)) {
@@ -166,11 +171,20 @@ export function validateManifest(input: unknown): ValidationResult {
 
   for (const [index, raw] of input.scenarios.entries()) {
     const where = `manifest.scenarios[${index}]`;
+    const scenarioErrorsBefore = errors.length;
     if (!isRecord(raw)) {
       errors.push(`${where} must be an object`);
       continue;
     }
     rejectUnknownKeys(where, raw, SCENARIO_KEYS, errors);
+
+    let validatedId: string | undefined;
+    let validatedPurpose: string | undefined;
+    let validatedSource: OracleScenarioSource | undefined;
+    let validatedExpectations: OracleExpectation[] = [];
+    let validatedRationale: string | undefined;
+    let validatedReviewedBy: string | undefined;
+    let validatedReviewedAt: string | undefined;
 
     const id = requireNonEmptyString(where, raw.id, "id", errors);
     if (id !== undefined) {
@@ -178,16 +192,21 @@ export function validateManifest(input: unknown): ValidationResult {
         errors.push(`${where}.id ${id} is duplicated across scenarios`);
       }
       seenIds.add(id);
+      validatedId = id;
     }
-    requireNonEmptyString(where, raw.purpose, "purpose", errors);
+    const purpose = requireNonEmptyString(where, raw.purpose, "purpose", errors);
+    if (purpose !== undefined) validatedPurpose = purpose;
 
+    let sourceFile: string | undefined;
+    let sourceAnchor: string | undefined;
     if (!isRecord(raw.source)) {
       errors.push(`${where}.source must be an object`);
     } else {
       const source = raw.source;
       const sourceWhere = `${where}.source`;
       rejectUnknownKeys(sourceWhere, source, SOURCE_KEYS, errors);
-      requireNonEmptyString(sourceWhere, source.file, "file", errors);
+      const file = requireNonEmptyString(sourceWhere, source.file, "file", errors);
+      if (file !== undefined) sourceFile = file;
       const anchor = requireNonEmptyString(
         sourceWhere,
         source.anchor,
@@ -195,6 +214,7 @@ export function validateManifest(input: unknown): ValidationResult {
         errors
       );
       if (anchor !== undefined) {
+        sourceAnchor = anchor;
         if (seenAnchors.has(anchor)) {
           errors.push(`${sourceWhere}.anchor ${anchor} is duplicated across scenarios`);
         }
@@ -210,13 +230,18 @@ export function validateManifest(input: unknown): ValidationResult {
           errors.push(`${sourceWhere}.anchor must not contain an endpoint URL`);
         }
       }
+      if (sourceFile !== undefined && sourceAnchor !== undefined) {
+        validatedSource = { file: sourceFile, anchor: sourceAnchor };
+      }
     }
 
     if (!Array.isArray(raw.expectations) || raw.expectations.length === 0) {
       errors.push(`${where}.expectations must be a non-empty array`);
     } else {
+      const expectationsForScenario: OracleExpectation[] = [];
       for (const [expectationIndex, rawExpectation] of raw.expectations.entries()) {
         const expectationWhere = `${where}.expectations[${expectationIndex}]`;
+        const expErrorsBefore = errors.length;
         if (!isRecord(rawExpectation)) {
           errors.push(`${expectationWhere} must be an object`);
           continue;
@@ -224,6 +249,7 @@ export function validateManifest(input: unknown): ValidationResult {
         rejectUnknownKeys(expectationWhere, rawExpectation, EXPECTATION_KEYS, errors);
 
         const outcome = rawExpectation.outcome;
+        let validatedOutcome: Outcome | undefined;
         if (
           typeof outcome !== "string" ||
           !(outcomes as readonly string[]).includes(outcome as string)
@@ -232,8 +258,16 @@ export function validateManifest(input: unknown): ValidationResult {
             `${expectationWhere}.outcome must be one of ${outcomes.join(", ")}`
           );
           continue;
+        } else {
+          validatedOutcome = outcome as Outcome;
         }
-        const shape = OUTCOME_SHAPE[outcome as Outcome];
+        const shape = OUTCOME_SHAPE[validatedOutcome];
+
+        let validatedProvider: Provider | undefined;
+        let validatedIdentifier: string | undefined;
+        let validatedEvidenceKind: string | undefined;
+        let validatedConfidence: ConfidenceBand | undefined;
+        let validatedReason: string | undefined;
 
         if (rawExpectation.provider !== undefined) {
           if (
@@ -245,7 +279,42 @@ export function validateManifest(input: unknown): ValidationResult {
             errors.push(
               `${expectationWhere}.provider must be one of ${providers.join(", ")}`
             );
+          } else {
+            validatedProvider = rawExpectation.provider as Provider;
           }
+        } else if (
+          typeof rawExpectation.provider === "string" &&
+          (providers as readonly string[]).includes(rawExpectation.provider as string)
+        ) {
+          validatedProvider = rawExpectation.provider as Provider;
+        }
+        // Capture identifier/evidenceKind/reason/confidence if present and valid for potential construction
+        if (
+          typeof rawExpectation.identifier === "string" &&
+          rawExpectation.identifier.trim() !== ""
+        ) {
+          validatedIdentifier = rawExpectation.identifier;
+        }
+        if (
+          typeof rawExpectation.evidenceKind === "string" &&
+          rawExpectation.evidenceKind.trim() !== ""
+        ) {
+          validatedEvidenceKind = rawExpectation.evidenceKind;
+        }
+        if (
+          typeof rawExpectation.confidence === "string" &&
+          (confidenceBands as readonly string[]).includes(
+            rawExpectation.confidence as string
+          )
+        ) {
+          // capture optimistically; forbidden/incompatible checks will still push errors and prevent push
+          validatedConfidence = rawExpectation.confidence as ConfidenceBand;
+        }
+        if (
+          typeof rawExpectation.reason === "string" &&
+          rawExpectation.reason.trim() !== ""
+        ) {
+          validatedReason = rawExpectation.reason;
         }
 
         for (const key of shape.required) {
@@ -283,13 +352,66 @@ export function validateManifest(input: unknown): ValidationResult {
             );
           }
         }
+
+        if (errors.length !== expErrorsBefore) continue;
+        // Build validated expectation from captured locals (or raw if capture missed but validation passed)
+        const exp: OracleExpectation = { outcome: validatedOutcome };
+        if (validatedProvider !== undefined) exp.provider = validatedProvider;
+        else if (typeof rawExpectation.provider === "string")
+          exp.provider = rawExpectation.provider as Provider;
+        if (validatedIdentifier !== undefined) exp.identifier = validatedIdentifier;
+        else if (typeof rawExpectation.identifier === "string")
+          exp.identifier = rawExpectation.identifier;
+        if (validatedEvidenceKind !== undefined)
+          exp.evidenceKind = validatedEvidenceKind;
+        else if (typeof rawExpectation.evidenceKind === "string")
+          exp.evidenceKind = rawExpectation.evidenceKind;
+        if (validatedConfidence !== undefined) exp.confidence = validatedConfidence;
+        else if (typeof rawExpectation.confidence === "string")
+          exp.confidence = rawExpectation.confidence as ConfidenceBand;
+        if (validatedReason !== undefined) exp.reason = validatedReason;
+        else if (typeof rawExpectation.reason === "string")
+          exp.reason = rawExpectation.reason;
+        expectationsForScenario.push(exp);
       }
+      validatedExpectations = expectationsForScenario;
     }
 
-    requireNonEmptyString(where, raw.rationale, "rationale", errors);
-    requireNonEmptyString(where, raw.reviewedBy, "reviewedBy", errors);
+    const rationale = requireNonEmptyString(where, raw.rationale, "rationale", errors);
+    if (rationale !== undefined) validatedRationale = rationale;
+    const reviewedBy = requireNonEmptyString(
+      where,
+      raw.reviewedBy,
+      "reviewedBy",
+      errors
+    );
+    if (reviewedBy !== undefined) validatedReviewedBy = reviewedBy;
     if (typeof raw.reviewedAt !== "string" || !REVIEW_DATE.test(raw.reviewedAt)) {
       errors.push(`${where}.reviewedAt must be a YYYY-MM-DD date`);
+    } else {
+      validatedReviewedAt = raw.reviewedAt;
+    }
+
+    if (errors.length === scenarioErrorsBefore) {
+      // All fields for this scenario must be present to be valid; validation already ensured no errors
+      if (
+        validatedId !== undefined &&
+        validatedPurpose !== undefined &&
+        validatedSource !== undefined &&
+        validatedRationale !== undefined &&
+        validatedReviewedBy !== undefined &&
+        validatedReviewedAt !== undefined
+      ) {
+        validatedScenarios.push({
+          id: validatedId,
+          purpose: validatedPurpose,
+          source: validatedSource,
+          expectations: validatedExpectations,
+          rationale: validatedRationale,
+          reviewedBy: validatedReviewedBy,
+          reviewedAt: validatedReviewedAt
+        });
+      }
     }
   }
 
@@ -298,8 +420,8 @@ export function validateManifest(input: unknown): ValidationResult {
   }
   const manifest: OracleManifest = {
     version: 1,
-    revision: input.revision as string,
-    scenarios: input.scenarios as OracleScenario[]
+    revision: validatedRevision!,
+    scenarios: validatedScenarios
   };
   return { ok: true, manifest };
 }

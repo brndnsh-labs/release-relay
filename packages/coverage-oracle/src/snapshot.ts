@@ -113,26 +113,35 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
   const errors: string[] = [];
   rejectUnknownKeys("snapshot", input, SNAPSHOT_KEYS, errors);
 
+  let validatedRepository: string | undefined;
+  let validatedRepositoryId: number | undefined;
+  let validatedReleaseRelayRevision: string | undefined;
+  let validatedBreakscopeRevision: string | undefined;
+  let validatedRuleset: string | undefined;
+  let validatedScan: SnapshotScan | undefined;
+  const validatedFiles: SnapshotFile[] = [];
+  const validatedObservations: SnapshotObservation[] = [];
+
   if (input.snapshotVersion !== 1)
     errors.push("snapshot.snapshotVersion must be the integer 1");
 
   if (
     typeof input.repository !== "string" ||
-    !allowedRepositories.includes(
-      input.repository as (typeof allowedRepositories)[number]
-    )
+    !(allowedRepositories as readonly string[]).includes(input.repository)
   ) {
     errors.push(`snapshot.repository must be one of ${allowedRepositories.join(", ")}`);
+  } else {
+    validatedRepository = input.repository;
   }
   if (
     typeof input.repositoryId !== "number" ||
-    !allowedRepositoryIds.includes(
-      input.repositoryId as (typeof allowedRepositoryIds)[number]
-    )
+    !(allowedRepositoryIds as readonly number[]).includes(input.repositoryId)
   ) {
     errors.push(
       `snapshot.repositoryId must be one of ${allowedRepositoryIds.join(", ")}`
     );
+  } else {
+    validatedRepositoryId = input.repositoryId;
   }
   if (
     typeof input.releaseRelayRevision !== "string" ||
@@ -141,6 +150,8 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
     errors.push(
       "snapshot.releaseRelayRevision must be a full 40-character git commit SHA"
     );
+  } else {
+    validatedReleaseRelayRevision = input.releaseRelayRevision;
   }
   if (
     typeof input.breakscopeRevision !== "string" ||
@@ -149,32 +160,51 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
     errors.push(
       "snapshot.breakscopeRevision must be a full 40-character git commit SHA"
     );
+  } else {
+    validatedBreakscopeRevision = input.breakscopeRevision;
   }
   if (
     typeof input.ruleset !== "string" ||
-    !allowedRulesets.includes(input.ruleset as (typeof allowedRulesets)[number])
+    !(allowedRulesets as readonly string[]).includes(input.ruleset)
   ) {
     errors.push(`snapshot.ruleset must be one of ${allowedRulesets.join(", ")}`);
+  } else {
+    validatedRuleset = input.ruleset;
   }
 
   if (!isRecord(input.scan)) {
     errors.push("snapshot.scan must be an object");
   } else {
     const scan = input.scan;
+    const scanErrorsBefore = errors.length;
+    let scanId: string | undefined;
+    let scanStatusValid = false;
+    let scanCompletedAt: string | undefined;
     rejectUnknownKeys("snapshot.scan", scan, SCAN_KEYS, errors);
-    requireNonEmptyString("snapshot.scan", scan.id, "id", errors);
+    const id = requireNonEmptyString("snapshot.scan", scan.id, "id", errors);
+    if (id !== undefined) scanId = id;
     if (
       typeof scan.status !== "string" ||
-      !allowedSnapshotStatus.includes(
-        scan.status as (typeof allowedSnapshotStatus)[number]
-      )
+      !(allowedSnapshotStatus as readonly string[]).includes(scan.status)
     ) {
       errors.push(
         `snapshot.scan.status must be one of ${allowedSnapshotStatus.join(", ")}`
       );
+    } else {
+      scanStatusValid = true;
     }
     if (typeof scan.completedAt !== "string" || !ISO_DATE.test(scan.completedAt)) {
       errors.push("snapshot.scan.completedAt must be an ISO-8601 UTC date");
+    } else {
+      scanCompletedAt = scan.completedAt;
+    }
+    if (
+      errors.length === scanErrorsBefore &&
+      scanId !== undefined &&
+      scanStatusValid &&
+      scanCompletedAt !== undefined
+    ) {
+      validatedScan = { id: scanId, status: "completed", completedAt: scanCompletedAt };
     }
   }
 
@@ -184,6 +214,7 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
     const seen = new Set<string>();
     for (const [i, raw] of input.files.entries()) {
       const where = `snapshot.files[${i}]`;
+      const entryErrorsBefore = errors.length;
       if (!isRecord(raw)) {
         errors.push(`${where} must be an object`);
         continue;
@@ -196,12 +227,35 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
         seen.add(file);
       }
       const disp = raw.disposition;
+      let validatedDisposition: SnapshotFileDisposition | undefined;
+      let validatedReason: string | undefined;
       if (typeof disp !== "string" || !["scanned", "excluded"].includes(disp)) {
         errors.push(`${where}.disposition must be one of scanned, excluded`);
-      } else if (disp === "excluded") {
-        requireNonEmptyString(where, raw.reason, "reason", errors);
-      } else if (raw.reason !== undefined) {
-        errors.push(`${where}.reason must not be present for disposition scanned`);
+      } else {
+        validatedDisposition = disp === "excluded" ? "excluded" : "scanned";
+        if (disp === "excluded") {
+          const r = requireNonEmptyString(where, raw.reason, "reason", errors);
+          if (r !== undefined) validatedReason = r;
+        } else if (raw.reason !== undefined) {
+          errors.push(`${where}.reason must not be present for disposition scanned`);
+        }
+      }
+      if (
+        errors.length === entryErrorsBefore &&
+        file !== undefined &&
+        validatedDisposition !== undefined
+      ) {
+        if (validatedDisposition === "excluded") {
+          if (validatedReason !== undefined) {
+            validatedFiles.push({
+              file,
+              disposition: validatedDisposition,
+              reason: validatedReason
+            });
+          }
+        } else {
+          validatedFiles.push({ file, disposition: validatedDisposition });
+        }
       }
     }
   }
@@ -212,25 +266,32 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
     const seen = new Set<string>();
     for (const [i, raw] of input.observations.entries()) {
       const where = `snapshot.observations[${i}]`;
+      const entryErrorsBefore = errors.length;
       if (!isRecord(raw)) {
         errors.push(`${where} must be an object`);
         continue;
       }
       rejectUnknownKeys(where, raw, OBS_KEYS, errors);
-      requireNonEmptyString(where, raw.file, "file", errors);
+      const file = requireNonEmptyString(where, raw.file, "file", errors);
+      let lineStartVal: number | undefined;
       if (
         typeof raw.lineStart !== "number" ||
         !Number.isInteger(raw.lineStart) ||
         raw.lineStart < 1
       ) {
         errors.push(`${where}.lineStart must be a positive integer`);
+      } else {
+        lineStartVal = raw.lineStart;
       }
+      let lineEndVal: number | undefined;
       if (
         typeof raw.lineEnd !== "number" ||
         !Number.isInteger(raw.lineEnd) ||
         raw.lineEnd < 1
       ) {
         errors.push(`${where}.lineEnd must be a positive integer`);
+      } else {
+        lineEndVal = raw.lineEnd;
       }
       if (
         typeof raw.lineStart === "number" &&
@@ -239,14 +300,28 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
       ) {
         errors.push(`${where}.lineStart must be <= lineEnd`);
       }
+      let providerVal: Provider | undefined;
       if (
         typeof raw.provider !== "string" ||
         !(providers as readonly string[]).includes(raw.provider as string)
       ) {
         errors.push(`${where}.provider must be one of ${providers.join(", ")}`);
+      } else {
+        providerVal = raw.provider as Provider;
       }
-      requireNonEmptyString(where, raw.identifier, "identifier", errors);
-      requireNonEmptyString(where, raw.evidenceKind, "evidenceKind", errors);
+      const identifier = requireNonEmptyString(
+        where,
+        raw.identifier,
+        "identifier",
+        errors
+      );
+      const evidenceKind = requireNonEmptyString(
+        where,
+        raw.evidenceKind,
+        "evidenceKind",
+        errors
+      );
+      let confidenceVal: number | undefined;
       if (
         typeof raw.confidence !== "number" ||
         Number.isNaN(raw.confidence) ||
@@ -254,6 +329,8 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
         raw.confidence > 1
       ) {
         errors.push(`${where}.confidence must be a number between 0 and 1`);
+      } else {
+        confidenceVal = raw.confidence;
       }
       // anchor hygiene for file? snapshot observations don't have anchor, but we check file anchor hygiene via snapshot? No.
       if (
@@ -275,20 +352,40 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
           );
         seen.add(key);
       }
+      if (
+        errors.length === entryErrorsBefore &&
+        file !== undefined &&
+        lineStartVal !== undefined &&
+        lineEndVal !== undefined &&
+        providerVal !== undefined &&
+        identifier !== undefined &&
+        evidenceKind !== undefined &&
+        confidenceVal !== undefined
+      ) {
+        validatedObservations.push({
+          file,
+          lineStart: lineStartVal,
+          lineEnd: lineEndVal,
+          provider: providerVal,
+          identifier,
+          evidenceKind,
+          confidence: confidenceVal
+        });
+      }
     }
   }
 
   if (errors.length > 0) return { ok: false, errors };
   const snapshot: BreakscopeSnapshot = {
     snapshotVersion: 1,
-    repository: input.repository as string,
-    repositoryId: input.repositoryId as number,
-    releaseRelayRevision: input.releaseRelayRevision as string,
-    breakscopeRevision: input.breakscopeRevision as string,
-    ruleset: input.ruleset as string,
-    scan: input.scan as SnapshotScan,
-    files: input.files as SnapshotFile[],
-    observations: input.observations as SnapshotObservation[]
+    repository: validatedRepository!,
+    repositoryId: validatedRepositoryId!,
+    releaseRelayRevision: validatedReleaseRelayRevision!,
+    breakscopeRevision: validatedBreakscopeRevision!,
+    ruleset: validatedRuleset!,
+    scan: validatedScan!,
+    files: validatedFiles,
+    observations: validatedObservations
   };
   return { ok: true, snapshot };
 }
