@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
@@ -19,9 +19,6 @@ function git(cwd: string, args: string[]): { status: number | null; stdout: stri
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
   return { status: r.status, stdout: typeof r.stdout === "string" ? r.stdout : "" };
 }
-
-const pinned = "3eb4ee65f7e2c7045301144622edab53f0ab8a54";
-const oldInconsistent = "2c3d3af26d5eaec4a8f85bdaa4ae3946b7bd7ef9";
 
 const baseScenario: OracleManifest["scenarios"][number] = {
   id: "test-scenario",
@@ -48,53 +45,116 @@ function manifestWith(
   return { version: 1, revision, scenarios: [scenario] };
 }
 
-test("commitExists returns true for a known commit and false for a missing one", () => {
-  assert.equal(commitExists(pinned, repoRoot), true);
-  assert.equal(
-    commitExists("ffffffffffffffffffffffffffffffffffffffff", repoRoot),
-    false
-  );
+async function createRepo(files: Record<string, string>): Promise<{
+  dir: string;
+  head: string;
+}> {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-oracle-revision-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "test@test.com"]);
+  git(dir, ["config", "user.name", "test"]);
+  for (const [file, content] of Object.entries(files)) {
+    const path = join(dir, file);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content);
+  }
+  git(dir, ["add", "."]);
+  git(dir, ["commit", "-m", "init"]);
+  return { dir, head: git(dir, ["rev-parse", "HEAD"]).stdout.trim() };
+}
+
+test("commitExists returns true for a known commit and false for a missing one", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    assert.equal(commitExists(repo.head, repo.dir), true);
+    assert.equal(
+      commitExists("ffffffffffffffffffffffffffffffffffffffff", repo.dir),
+      false
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
-test("getHeadCommit returns the current HEAD", () => {
-  const head = getHeadCommit(repoRoot);
-  assert.ok(head !== null && /^[0-9a-f]{40}$/.test(head));
-  const expected = git(repoRoot, ["rev-parse", "HEAD"]).stdout.trim();
-  assert.equal(head, expected);
+test("getHeadCommit returns the current HEAD", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const head = getHeadCommit(repo.dir);
+    assert.ok(head !== null && /^[0-9a-f]{40}$/.test(head));
+    assert.equal(head, repo.head);
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
-test("readFileAtRevision resolves a file that exists at the pinned commit", () => {
-  const r = readFileAtRevision(pinned, "src/index.ts", repoRoot);
-  assert.equal(r.ok, true);
-  if (r.ok) assert.ok(r.content.includes("repositoryPhase"));
+test("readFileAtRevision resolves a file that exists at the pinned commit", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const r = readFileAtRevision(repo.head, "src/index.ts", repo.dir);
+    assert.equal(r.ok, true);
+    if (r.ok) assert.ok(r.content.includes("repositoryPhase"));
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
-test("readFileAtRevision fails for a file absent at the pinned commit", () => {
-  const r = readFileAtRevision(pinned, "no/such/file.ts", repoRoot);
-  assert.equal(r.ok, false);
+test("readFileAtRevision fails for a file absent at the pinned commit", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const r = readFileAtRevision(repo.head, "no/such/file.ts", repo.dir);
+    assert.equal(r.ok, false);
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
 test("revision-aware validation fails for a missing local commit without network", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
   const manifest = manifestWith(
     "ffffffffffffffffffffffffffffffffffffffff",
     baseScenario
   );
-  const errors = await checkRevisionAnchors(manifest, repoRoot);
-  assert.ok(
-    errors.some((e) => e.includes("does not exist locally")),
-    errors.join("; ")
-  );
+  try {
+    const errors = await checkRevisionAnchors(manifest, repo.dir);
+    assert.ok(
+      errors.some((e) => e.includes("does not exist locally")),
+      errors.join("; ")
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
 test("revision-aware validation fails when HEAD does not match the manifest revision", async () => {
-  // Current HEAD is c8c51c7 (or branch HEAD), not the pinned 3eb4ee6, so mismatch is expected
-  const manifest = manifestWith(pinned, baseScenario);
-  const errors = await checkRevisionAnchors(manifest, repoRoot);
-  // Should report HEAD mismatch even though file/anchor are valid at the pinned commit
-  assert.ok(
-    errors.some((e) => e.includes("does not match HEAD")),
-    errors.join("; ")
-  );
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const manifest = manifestWith(repo.head, baseScenario);
+    await writeFile(
+      join(repo.dir, "src/index.ts"),
+      "export const repositoryPhase = 2;\n"
+    );
+    git(repo.dir, ["add", "."]);
+    git(repo.dir, ["commit", "-m", "second"]);
+    const errors = await checkRevisionAnchors(manifest, repo.dir);
+    assert.ok(
+      errors.some((e) => e.includes("does not match HEAD")),
+      errors.join("; ")
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
 test("revision-aware validation reports missing file at the declared revision", async () => {
@@ -102,12 +162,19 @@ test("revision-aware validation reports missing file at the declared revision", 
     ...baseScenario,
     source: { file: "scenarios/does-not-exist/src/index.ts", anchor: "whatever" }
   };
-  const manifest = manifestWith(pinned, scenario);
-  const errors = await checkRevisionAnchors(manifest, repoRoot);
-  assert.ok(
-    errors.some((e) => e.includes("not found in revision")),
-    errors.join("; ")
-  );
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const manifest = manifestWith(repo.head, scenario);
+    const errors = await checkRevisionAnchors(manifest, repo.dir);
+    assert.ok(
+      errors.some((e) => e.includes("not found in revision")),
+      errors.join("; ")
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
 test("revision-aware validation reports missing anchor at the declared revision", async () => {
@@ -115,30 +182,43 @@ test("revision-aware validation reports missing anchor at the declared revision"
     ...baseScenario,
     source: { file: "src/index.ts", anchor: "anchor-that-does-not-exist-xyz" }
   };
-  const manifest = manifestWith(pinned, scenario);
-  const errors = await checkRevisionAnchors(manifest, repoRoot);
-  assert.ok(
-    errors.some((e) => e.includes("not found in") && e.includes("anchor")),
-    errors.join("; ")
-  );
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const manifest = manifestWith(repo.head, scenario);
+    const errors = await checkRevisionAnchors(manifest, repo.dir);
+    assert.ok(
+      errors.some((e) => e.includes("not found in") && e.includes("anchor")),
+      errors.join("; ")
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
 test("revision-aware validation reports duplicate anchor at the declared revision", async () => {
-  // 'export' appears many times in src/index.ts at the pinned commit
   const scenario = {
     ...baseScenario,
     source: { file: "src/index.ts", anchor: "export" }
   };
-  const manifest = manifestWith(pinned, scenario);
-  const errors = await checkRevisionAnchors(manifest, repoRoot);
-  assert.ok(
-    errors.some((e) => e.includes("appears") && e.includes("expected exactly one")),
-    errors.join("; ")
-  );
+  const repo = await createRepo({
+    "src/index.ts":
+      "export const repositoryPhase = 1;\nexport const repositoryPhase = 2;\n"
+  });
+  try {
+    const manifest = manifestWith(repo.head, scenario);
+    const errors = await checkRevisionAnchors(manifest, repo.dir);
+    assert.ok(
+      errors.some((e) => e.includes("appears") && e.includes("expected exactly one")),
+      errors.join("; ")
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
-test("the old inconsistent manifest (2c3d3af) fails revision-aware validation because M5 files are absent", async () => {
-  // Recreate a manifest that declares the old revision but requires an M5 file absent at that commit
+test("a manifest fails revision-aware validation when its declared revision lacks an M5 file", async () => {
   const scenario: OracleManifest["scenarios"][number] = {
     id: "http-atomic-full-url-drafter",
     purpose: "Draft via raw HTTP",
@@ -159,21 +239,19 @@ test("the old inconsistent manifest (2c3d3af) fails revision-aware validation be
     reviewedBy: "maintainer",
     reviewedAt: "2026-08-19"
   };
-  const manifest = manifestWith(oldInconsistent, scenario);
-  const errors = await checkRevisionAnchors(manifest, repoRoot);
-  // File does not exist at 2c3d3af, so it should be reported as not found in revision
-  assert.ok(
-    errors.some(
-      (e) => e.includes("not found in revision") || e.includes("does not match HEAD")
-    ),
-    errors.join("; ")
-  );
-  // The key assertion: at least one file-not-found error, proving the pin is inconsistent
-  const fileErrors = errors.filter((e) => e.includes("not found in revision"));
-  assert.ok(
-    fileErrors.length >= 1 || errors.some((e) => e.includes(oldInconsistent)),
-    errors.join("; ")
-  );
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  try {
+    const manifest = manifestWith(repo.head, scenario);
+    const errors = await checkRevisionAnchors(manifest, repo.dir);
+    assert.ok(
+      errors.some((e) => e.includes("not found in revision")),
+      errors.join("; ")
+    );
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
 });
 
 test("revision-aware validation passes when HEAD matches and anchors resolve at that commit (isolated repo)", async () => {
@@ -287,24 +365,8 @@ test("CLI --check-revision succeeds for the pinned manifest when checked out at 
     manifest.revision = head;
     const manifestPath = join(dir, "manifest.json");
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
-    const cli = fileURLToPath(new URL("./cli.js", import.meta.url));
-    // Build first is already done via pnpm build; cli.js exists in dist
-    // Run without flag should pass
-    let result = spawnSync(
-      process.execPath,
-      [fileURLToPath(new URL("./cli.js", import.meta.url)), "validate", manifestPath],
-      { cwd: dir, encoding: "utf8" }
-    );
-    // Use dist/cli.js path: the test file runs from dist, so resolve correctly
-    // Fallback: spawn the built cli
-    if (result.status !== 0) {
-      // Try dist path explicitly
-      const distCli = fileURLToPath(new URL("../../dist/cli.js", import.meta.url));
-      // Actually this test file is in src, compiled to dist/revision.test.js; cwd is dir, cli path should be absolute to dist
-    }
-    // Re-run using the repoRoot dist cli to avoid path confusion
     const distCli = join(repoRoot, "packages/coverage-oracle/dist/cli.js");
-    result = spawnSync(process.execPath, [distCli, "validate", manifestPath], {
+    const result = spawnSync(process.execPath, [distCli, "validate", manifestPath], {
       cwd: dir,
       encoding: "utf8"
     });
