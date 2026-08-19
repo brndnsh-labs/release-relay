@@ -17,6 +17,11 @@ const PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 3;
 const GITHUB_API_BASE_URL = "https://api.github.com";
 
+// ponytail: closing keywords + "Reverts owner/repo#N" body scans cover the
+// documented derivation rules; a commit-to-PR GraphQL join is the upgrade path
+// if body-less merge styles become a product concern.
+const CLOSING_KEYWORD = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi;
+
 interface ApiResponse {
   data: unknown;
 }
@@ -30,6 +35,12 @@ interface PageParams {
 
 interface PullRequestPageParams extends PageParams {
   state: "closed";
+  sort: "updated";
+  direction: "desc";
+}
+
+interface IssuePageParams extends PageParams {
+  state: "closed";
 }
 
 export interface GitHubApi {
@@ -41,8 +52,7 @@ export interface GitHubApi {
     head: string;
   }): Promise<ApiResponse>;
   listPullRequests(params: PullRequestPageParams): Promise<ApiResponse>;
-  listIssues(params: PullRequestPageParams): Promise<ApiResponse>;
-  listContributors(params: PageParams): Promise<ApiResponse>;
+  listIssues(params: IssuePageParams): Promise<ApiResponse>;
   listReleases(params: PageParams): Promise<ApiResponse>;
 }
 
@@ -103,18 +113,14 @@ function failureFor(
     return { status: "failed", operationId: "", errorClass: error.errorClass };
   }
   const status = statusOf(error);
-  if (
-    status === 401 ||
-    status === 403 ||
-    status === 404 ||
-    status === 409 ||
-    status === 422
-  ) {
-    return {
-      status: "refused",
-      operationId: "",
-      errorClass: status === 404 ? "not-found" : "authorization"
-    };
+  if (status === 409 || status === 422) {
+    return { status: "refused", operationId: "", errorClass: "conflict" };
+  }
+  if (status === 401 || status === 403) {
+    return { status: "refused", operationId: "", errorClass: "authorization" };
+  }
+  if (status === 404) {
+    return { status: "refused", operationId: "", errorClass: "not-found" };
   }
   if (status === 429)
     return { status: "failed", operationId: "", errorClass: "rate-limit" };
@@ -183,7 +189,38 @@ function mapRepository(data: Record<string, unknown>): RepositorySummary {
   return { owner, name, id: String(id), url };
 }
 
-function mapPullRequest(data: unknown): PullRequestSummary | undefined {
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The comparison response itself carries the repository identity
+// (https://github.com/{owner}/{repo}/compare/...). A response naming a
+// different repository than the configured scope is rejected, not mapped.
+function checkComparisonIdentity(
+  comparison: Record<string, unknown>,
+  scope: RepositoryRef
+): void {
+  const url = stringValue(comparison, "html_url");
+  const match = url?.match(/^https:\/\/[^/]+\/([^/]+)\/([^/]+)\/compare\//);
+  const [, owner, name] = match ?? [];
+  if (
+    owner !== undefined &&
+    name !== undefined &&
+    (owner.toLowerCase() !== scope.owner.toLowerCase() ||
+      name.toLowerCase() !== scope.name.toLowerCase())
+  ) {
+    throw new AdapterError("invalid-input");
+  }
+}
+
+interface LivePullRequest {
+  number: number;
+  summary: PullRequestSummary;
+  mergeCommitSha: string | undefined;
+  body: string | undefined;
+}
+
+function mapPullRequest(data: unknown): LivePullRequest | undefined {
   if (!isRecord(data)) return undefined;
   const number = numberValue(data, "number");
   const url = stringValue(data, "html_url");
@@ -191,12 +228,17 @@ function mapPullRequest(data: unknown): PullRequestSummary | undefined {
   if (number === undefined || url === undefined || title === undefined)
     return undefined;
   return {
-    sourceIdentity: `pull/${number}`,
-    url,
-    title,
-    merged: typeof data.merged_at === "string",
-    reverted: false,
-    linkedIssueIdentities: []
+    number,
+    mergeCommitSha: stringValue(data, "merge_commit_sha"),
+    body: stringValue(data, "body"),
+    summary: {
+      sourceIdentity: `pull/${number}`,
+      url,
+      title,
+      merged: typeof data.merged_at === "string",
+      reverted: false,
+      linkedIssueIdentities: []
+    }
   };
 }
 
@@ -217,13 +259,6 @@ function mapIssue(data: unknown): IssueSummary | undefined {
   };
 }
 
-function mapContributor(data: unknown): ContributorSummary | undefined {
-  if (!isRecord(data)) return undefined;
-  const identity = stringValue(data, "login");
-  const url = stringValue(data, "html_url");
-  return identity === undefined || url === undefined ? undefined : { identity, url };
-}
-
 function mapRelease(data: unknown): ReleaseSummary | undefined {
   if (!isRecord(data)) return undefined;
   const tag = stringValue(data, "tag_name");
@@ -242,10 +277,6 @@ function apiFromOctokit(client: OctokitClient): GitHubApi {
     listIssues: (params) =>
       client.rest.issues.listForRepo(
         params as Parameters<typeof client.rest.issues.listForRepo>[0]
-      ),
-    listContributors: (params) =>
-      client.rest.repos.listContributors(
-        params as Parameters<typeof client.rest.repos.listContributors>[0]
       ),
     listReleases: (params) =>
       client.rest.repos.listReleases(
@@ -280,39 +311,154 @@ export function createGitHubReader(
         return { status: "refused", operationId, errorClass: "invalid-input" };
       }
       return run(operationId, async () => {
-        await api
-          .compareCommits({
+        // The comparison payload is the authoritative range boundary: every
+        // candidate below must be evidenced by a commit SHA it reports.
+        const comparison = responseRecord(
+          await api.compareCommits({
             owner: scope.repository.owner,
             repo: scope.repository.name,
             base: range.base,
             head: range.head
           })
-          .then(responseRecord);
+        );
+        checkComparisonIdentity(comparison, scope.repository);
         const base = { owner: scope.repository.owner, repo: scope.repository.name };
-        const [pullRequests, issues, contributors, priorReleases] = await Promise.all([
-          pageThrough(api.listPullRequests, { ...base, state: "closed" }, pages),
-          pageThrough(api.listIssues, { ...base, state: "closed" }, pages),
-          pageThrough(api.listContributors, base, pages),
-          pageThrough(api.listReleases, base, pages)
+
+        // ponytail: the unpaginated compare response caps commits[] at 250;
+        // ranges beyond that under-report SHAs and conservatively exclude the
+        // tail PRs. Paginate compareCommits if such ranges become real.
+        const rangeShas = new Set<string>();
+        const rangeContributors = new Map<string, ContributorSummary>();
+        for (const item of Array.isArray(comparison.commits)
+          ? comparison.commits
+          : []) {
+          if (!isRecord(item)) continue;
+          const sha = stringValue(item, "sha");
+          if (sha !== undefined) rangeShas.add(sha);
+          if (isRecord(item.author)) {
+            const identity = stringValue(item.author, "login");
+            const url = stringValue(item.author, "html_url");
+            if (identity !== undefined && url !== undefined) {
+              rangeContributors.set(identity, { identity, url });
+            }
+          }
+        }
+
+        // Prior releases stay separated as context; they can never become
+        // candidates regardless of range contents.
+        const priorReleases = (
+          await pageThrough(api.listReleases, base, pages)
+        ).flatMap((item) => {
+          const mapped = mapRelease(item);
+          return mapped === undefined ? [] : [mapped];
+        });
+
+        // An identical or commit-less range selects nothing, even when
+        // repository-wide endpoints contain old closed work.
+        const totalCommits = numberValue(comparison, "total_commits") ?? 0;
+        if (
+          comparison.status === "identical" ||
+          totalCommits === 0 ||
+          rangeShas.size === 0
+        ) {
+          return {
+            range,
+            pullRequests: [],
+            issues: [],
+            contributors: [],
+            priorReleases
+          } satisfies ComparisonResult;
+        }
+
+        const [pullRequests, issues] = await Promise.all([
+          pageThrough(
+            api.listPullRequests,
+            { ...base, state: "closed", sort: "updated", direction: "desc" },
+            pages
+          ),
+          pageThrough(api.listIssues, { ...base, state: "closed" }, pages)
         ]);
-        return {
-          range,
-          pullRequests: pullRequests.flatMap((item) => {
-            const mapped = mapPullRequest(item);
-            return mapped === undefined ? [] : [mapped];
-          }),
-          issues: issues.flatMap((item) => {
+
+        // Retention rule: a closed pull request is a candidate only when it
+        // is merged and its merge commit is one of the range's commits.
+        const retained: LivePullRequest[] = [];
+        for (const item of pullRequests) {
+          const mapped = mapPullRequest(item);
+          if (mapped === undefined || !mapped.summary.merged) continue;
+          if (
+            mapped.mergeCommitSha !== undefined &&
+            rangeShas.has(mapped.mergeCommitSha)
+          ) {
+            retained.push(mapped);
+          }
+        }
+
+        // Reverted-work rule: a retained PR whose body carries GitHub's
+        // "Reverts owner/repo#N" line marks that referenced PR reverted.
+        // ponytail: conservative fallback — a revert whose PR body doesn't
+        // match the pattern (or falls outside the pulls.list recency window)
+        // leaves reverted false; per-commit /commits/{sha}/pulls fan-out is
+        // the upgrade path if silent reverts become a real problem.
+        const revertPattern = new RegExp(
+          `\\bReverts?\\s+${escapeRegExp(
+            `${scope.repository.owner}/${scope.repository.name}`
+          )}#(\\d+)\\b`,
+          "i"
+        );
+        const revertedNumbers = new Set<number>();
+        for (const pr of retained) {
+          const match = pr.body?.match(revertPattern);
+          if (match !== null && match !== undefined)
+            revertedNumbers.add(Number(match[1]));
+        }
+
+        // Linked-issue rule: closing keywords in a retained PR's body link it
+        // to the referenced issue, which lets the assembler dedupe one change
+        // across its PR and issue identities.
+        const linkedIssues = new Map<number, string[]>();
+        for (const pr of retained) {
+          if (pr.body === undefined) continue;
+          for (const match of pr.body.matchAll(CLOSING_KEYWORD)) {
+            const issueNumber = Number(match[1]);
+            const links = linkedIssues.get(issueNumber) ?? [];
+            if (!links.includes(pr.summary.sourceIdentity))
+              links.push(pr.summary.sourceIdentity);
+            linkedIssues.set(issueNumber, links);
+          }
+        }
+
+        const retainedSummaries = retained.map((pr) => ({
+          ...pr.summary,
+          reverted: revertedNumbers.has(pr.number),
+          linkedIssueIdentities: [...linkedIssues.entries()]
+            .filter(([, prIdentities]) =>
+              prIdentities.includes(pr.summary.sourceIdentity)
+            )
+            .map(([issueNumber]) => `issue/${issueNumber}`)
+        }));
+
+        const linkedIssueSummaries = issues
+          .flatMap((item) => {
             const mapped = mapIssue(item);
             return mapped === undefined ? [] : [mapped];
-          }),
-          contributors: contributors.flatMap((item) => {
-            const mapped = mapContributor(item);
-            return mapped === undefined ? [] : [mapped];
-          }),
-          priorReleases: priorReleases.flatMap((item) => {
-            const mapped = mapRelease(item);
-            return mapped === undefined ? [] : [mapped];
           })
+          .filter((issue) => {
+            const sourceNumber = Number(issue.sourceIdentity.slice("issue/".length));
+            return linkedIssues.has(sourceNumber);
+          })
+          .map((issue) => ({
+            ...issue,
+            linkedPullRequestIdentities:
+              linkedIssues.get(Number(issue.sourceIdentity.slice("issue/".length))) ??
+              []
+          }));
+
+        return {
+          range,
+          pullRequests: retainedSummaries,
+          issues: linkedIssueSummaries,
+          contributors: [...rangeContributors.values()],
+          priorReleases
         } satisfies ComparisonResult;
       });
     }

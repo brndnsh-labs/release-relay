@@ -78,9 +78,19 @@ Every external operation receives an application-generated operation ID. Retries
 Each provider package owns SDK construction, raw response validation, error classification, redaction, and mapping to core values. Environment reads occur at the composition root and typed configuration is passed inward.
 
 The GitHub read adapter uses the registered Octokit REST methods for repository,
-comparison, pull request, issue, contributor, and release reads. Its test seam
+comparison, pull request, issue, and release reads. Its test seam
 accepts an injected client; only explicit live composition roots construct
-Octokit.
+Octokit. In live mode the `compareCommits` response is the authoritative range
+boundary: a closed pull request becomes a candidate only when it is merged and
+its merge commit SHA appears in the comparison's commits, linked issues are
+derived from closing keywords in retained pull request bodies, reverted work is
+marked from GitHub's `Reverts owner/repo#N` body pattern, and contributors are
+the range's commit authors rather than the repository's all-time list. An
+identical or commit-less range selects no candidates; prior releases stay
+separated as context. Known bounded ceilings: the unpaginated comparison caps
+`commits` at 250, and pull request discovery is bounded by the adapter's page
+limit over `pulls.list` sorted by recency — a merged pull request outside that
+recency window is conservatively excluded (documented fallbacks, never silent).
 The separate GitHub write adapter uses `repos.get` for the current publication
 authorization check, `repos.getReleaseByTag` for reconciliation, and
 `repos.createRelease` only after preview hash, confirmation, expiry, and access
