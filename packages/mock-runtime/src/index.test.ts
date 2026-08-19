@@ -23,7 +23,8 @@ const range: ComparisonRange = { base: "v0.1.0", head: "main" };
 const tier: SponsorTier = {
   id: "supporter",
   name: "Supporter",
-  description: "Thank you"
+  description: "Thank you",
+  price: { minorUnits: 500, currency: "usd" }
 };
 
 function value<T>(result: OperationResult<T>): T {
@@ -132,15 +133,23 @@ test("the runtime composes the offline release workflow", async () => {
   );
   assert.equal(workspace.state, "published");
 
+  const syncedTier = value(
+    await runtime.billing.syncTier({
+      operationId: runtime.nextOperationId("tier"),
+      tier
+    })
+  );
   assert.deepEqual(
-    value(
-      await runtime.billing.syncTier({
-        operationId: runtime.nextOperationId("tier"),
-        tier
-      })
-    ),
+    {
+      id: syncedTier.id,
+      name: syncedTier.name,
+      description: syncedTier.description,
+      price: syncedTier.price
+    },
     tier
   );
+  assert.notEqual(syncedTier.providerProductId, "");
+  assert.notEqual(syncedTier.providerPriceId, "");
   const checkout = value(
     await runtime.billing.createCheckout({
       operationId: runtime.nextOperationId("checkout"),
@@ -158,6 +167,7 @@ test("the runtime composes the offline release workflow", async () => {
   const membership = value(
     await runtime.webhookProjector.project({
       eventId: runtime.nextOperationId("webhook"),
+      eventCreatedAt: "2027-01-01T00:00:00.000Z",
       customerId: "customer-1",
       membershipState: "active"
     })
