@@ -116,6 +116,32 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  scenarios/atomic/anthropic-draft-reviewer:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.117.1
+        version: 0.117.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/anthropic-unrelated-negative:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.117.1
+        version: 0.117.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   scenarios/atomic/github-maintainer-cli:
     dependencies:
       '@octokit/rest':
