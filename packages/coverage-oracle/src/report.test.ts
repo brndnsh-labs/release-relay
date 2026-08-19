@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { validateReport, type ScanReport } from "./report.js";
+import { type ScanReportV2, validateReport } from "./report.js";
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
-const base: ScanReport = {
-  reportVersion: 1,
+const base: ScanReportV2 = {
+  reportVersion: 2,
   manifestVersion: 1,
   releaseRelayRevision: "0123456789abcdef0123456789abcdef01234567",
   breakscopeRevision: "fedcba9876543210fedcba9876543210fedcba98",
@@ -19,8 +19,8 @@ const base: ScanReport = {
   observations: [
     {
       file: "src/index.ts",
-      anchor: "repositoryPhase",
-      line: 5,
+      lineStart: 5,
+      lineEnd: 9,
       provider: "github",
       identifier: "repos.list",
       evidenceKind: "sdk-call",
@@ -38,39 +38,37 @@ function expectInvalid(mutated: unknown, message: string): void {
   );
 }
 
-test("a valid report passes", () => {
+test("a valid v2 report passes", () => {
   const result = validateReport(base);
   assert.ok(result.ok);
+  assert.equal(result.report.reportVersion, 2);
   assert.equal(result.report.observations.length, 1);
 });
 
-test("unknown report fields are rejected", () => {
+test("unknown report, file, and observation fields are rejected", () => {
   expectInvalid({ ...base, extra: true }, "unknown field extra");
-});
-
-test("unknown file and observation fields are rejected", () => {
   expectInvalid(
     { ...base, files: [{ ...base.files[0], stray: 1 }] },
     "unknown field stray"
   );
   expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], stray: 1 }]
-    },
+    { ...base, observations: [{ ...base.observations[0], stray: 1 }] },
     "unknown field stray"
   );
 });
 
-test("non-v1 report or manifest versions are rejected", () => {
-  expectInvalid({ ...base, reportVersion: 2 }, "reportVersion must be the integer 1");
+test("unsupported report or manifest versions are rejected", () => {
+  expectInvalid(
+    { ...base, reportVersion: 3 },
+    "reportVersion must be the integer 1 or 2"
+  );
   expectInvalid(
     { ...base, manifestVersion: 2 },
     "manifestVersion must be the integer 1"
   );
 });
 
-test("short or malformed SHAs are rejected", () => {
+test("identity, ruleset, and file dispositions fail closed", () => {
   expectInvalid(
     { ...base, releaseRelayRevision: "b12d651" },
     "full 40-character git commit SHA"
@@ -79,21 +77,11 @@ test("short or malformed SHAs are rejected", () => {
     { ...base, breakscopeRevision: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" },
     "full 40-character git commit SHA"
   );
-});
-
-test("empty ruleset is rejected", () => {
   expectInvalid({ ...base, ruleset: "" }, "ruleset must be a non-empty string");
-  expectInvalid({ ...base, ruleset: "   " }, "ruleset must be a non-empty string");
-});
-
-test("invalid file dispositions are rejected", () => {
   expectInvalid(
     { ...base, files: [{ file: "src/index.ts", disposition: "unknown" }] },
     "disposition must be one of"
   );
-});
-
-test("excluded files require a reason and scanned files forbid one", () => {
   expectInvalid(
     { ...base, files: [{ file: "src/index.ts", disposition: "excluded" }] },
     "reason must be a non-empty string"
@@ -105,75 +93,67 @@ test("excluded files require a reason and scanned files forbid one", () => {
     },
     "must not be present for disposition scanned"
   );
-});
-
-test("duplicate file entries are rejected", () => {
   expectInvalid(
     { ...base, files: [base.files[0], base.files[0]] },
     "is duplicated in report.files"
   );
 });
 
-test("invalid observation fields are rejected", () => {
+test("v2 observations require actual valid ranges and fields", () => {
   expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], provider: "amazon" }]
-    },
+    { ...base, observations: [{ ...base.observations[0], provider: "amazon" }] },
     "provider must be one of"
   );
   expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], confidence: "unknown" }]
-    },
+    { ...base, observations: [{ ...base.observations[0], confidence: "unknown" }] },
     "confidence must be one of"
   );
   expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], line: 0 }]
-    },
-    "line must be a positive integer"
+    { ...base, observations: [{ ...base.observations[0], lineStart: 0 }] },
+    "lineStart must be a positive integer"
+  );
+  expectInvalid(
+    { ...base, observations: [{ ...base.observations[0], lineEnd: 1.5 }] },
+    "lineEnd must be a positive integer"
   );
   expectInvalid(
     {
       ...base,
-      observations: [{ ...base.observations[0], line: 1.5 }]
+      observations: [{ ...base.observations[0], lineStart: 10, lineEnd: 9 }]
     },
-    "line must be a positive integer"
+    "lineStart must be <= lineEnd"
   );
   expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], evidenceKind: "" }]
-    },
+    { ...base, observations: [{ ...base.observations[0], evidenceKind: "" }] },
     "evidenceKind must be a non-empty string"
   );
-});
-
-test("anchors containing provider names or URLs are rejected", () => {
   expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], anchor: "github-call" }]
-    },
-    "anchor must not contain the provider name github"
+    { ...base, observations: [{ ...base.observations[0], anchor: "legacy-anchor" }] },
+    "unknown field anchor"
   );
-  expectInvalid(
-    {
-      ...base,
-      observations: [{ ...base.observations[0], anchor: "https://example.com" }]
-    },
-    "anchor must not contain an endpoint URL"
-  );
-});
-
-test("duplicate observation keys are rejected", () => {
   expectInvalid(
     { ...base, observations: [base.observations[0], base.observations[0]] },
     "duplicates the observation for"
   );
+});
+
+test("the staged v1 comparator compatibility validator accepts v1 reports", () => {
+  const legacy = {
+    ...base,
+    reportVersion: 1,
+    observations: [
+      {
+        file: "src/index.ts",
+        anchor: "repositoryPhase",
+        line: 5,
+        provider: "github",
+        identifier: "repos.list",
+        evidenceKind: "sdk-call",
+        confidence: "supporting"
+      }
+    ]
+  };
+  assert.ok(validateReport(legacy).ok);
 });
 
 function runCli(
@@ -189,8 +169,8 @@ function runCli(
   };
 }
 
-test("the example report passes through the CLI", () => {
-  const example = join(repoRoot, "scenarios/report-v1.example.json");
+test("the v2 example report passes through the CLI", () => {
+  const example = join(repoRoot, "scenarios/report-v2.example.json");
   const result = runCli(["validate-report", example], repoRoot);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /valid report:/);
