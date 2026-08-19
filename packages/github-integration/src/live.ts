@@ -560,14 +560,20 @@ export function createGitHubReader(
           }
         }
 
+        const prToIssues = new Map<string, number[]>();
+        for (const [issueNumber, prIdentities] of linkedIssues.entries()) {
+          for (const prId of prIdentities) {
+            const list = prToIssues.get(prId) ?? [];
+            list.push(issueNumber);
+            prToIssues.set(prId, list);
+          }
+        }
         const retainedSummaries = retained.map((pr) => ({
           ...pr.summary,
           reverted: revertedNumbers.has(pr.number),
-          linkedIssueIdentities: [...linkedIssues.entries()]
-            .filter(([, prIdentities]) =>
-              prIdentities.includes(pr.summary.sourceIdentity)
-            )
-            .map(([issueNumber]) => `issue/${issueNumber}`)
+          linkedIssueIdentities: (prToIssues.get(pr.summary.sourceIdentity) ?? []).map(
+            (n) => `issue/${n}`
+          )
         }));
 
         const linkedIssueSummaries = issues
