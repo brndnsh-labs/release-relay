@@ -110,6 +110,26 @@
       "rationale": "The isolated Octokit writer performs the documented authorization, reconciliation, and confirmed release mutation calls; tests inject a fake and never execute them.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-18"
+    },
+    {
+      "id": "openai-structured-drafter",
+      "purpose": "Draft a structured, source-grounded release body through the isolated OpenAI Responses adapter.",
+      "source": {
+        "file": "packages/openai-integration/src/draft.ts",
+        "anchor": "draft-adapter-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The explicit live-AI composition root uses the official Responses SDK method with a strict schema and disabled storage; tests inject a fake and never execute the call.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
