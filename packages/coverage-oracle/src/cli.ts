@@ -3,11 +3,12 @@ import { readFile } from "node:fs/promises";
 import { checkSourceAnchors } from "./anchors.js";
 import { compareReports, formatComparison } from "./compare.js";
 import { validateReport } from "./report.js";
+import { checkRevisionAnchors } from "./revision.js";
 import { validateManifest } from "./schema.js";
 
 const USAGE = [
   "usage:",
-  "  coverage-oracle validate <manifest.json>",
+  "  coverage-oracle validate <manifest.json> [--check-revision]",
   "  coverage-oracle validate-report <report.json>",
   "  coverage-oracle compare <manifest.json> <report.json> [--json]"
 ].join("\n");
@@ -36,13 +37,33 @@ function parseArgs(args: string[]): {
   inputFile: string;
   reportFile?: string;
   json: boolean;
+  checkRevision: boolean;
 } | null {
   const command = args[0];
-  if (command === "validate" || command === "validate-report") {
+  if (command === "validate") {
+    if (args.length === 2) {
+      return {
+        command,
+        inputFile: args[1] as string,
+        json: false,
+        checkRevision: false
+      };
+    }
+    if (args.length === 3 && args[2] === "--check-revision") {
+      return {
+        command,
+        inputFile: args[1] as string,
+        json: false,
+        checkRevision: true
+      };
+    }
+    return null;
+  }
+  if (command === "validate-report") {
     if (args.length !== 2) {
       return null;
     }
-    return { command, inputFile: args[1] as string, json: false };
+    return { command, inputFile: args[1] as string, json: false, checkRevision: false };
   }
   if (command === "compare") {
     if (args.length === 3) {
@@ -50,7 +71,8 @@ function parseArgs(args: string[]): {
         command,
         inputFile: args[1] as string,
         reportFile: args[2] as string,
-        json: false
+        json: false,
+        checkRevision: false
       };
     }
     if (args.length === 4 && args[3] === "--json") {
@@ -58,7 +80,8 @@ function parseArgs(args: string[]): {
         command,
         inputFile: args[1] as string,
         reportFile: args[2] as string,
-        json: true
+        json: true,
+        checkRevision: false
       };
     }
     return null;
@@ -72,7 +95,7 @@ async function main(): Promise<number> {
     process.stderr.write(`${USAGE}\n`);
     return 1;
   }
-  const { command, inputFile, reportFile, json } = parsed;
+  const { command, inputFile, reportFile, json, checkRevision } = parsed;
 
   const jsonInput = await readJson(inputFile);
   if (!jsonInput.ok) {
@@ -109,6 +132,15 @@ async function main(): Promise<number> {
         process.stderr.write(`error: ${error}\n`);
       }
       return 1;
+    }
+    if (checkRevision) {
+      const revisionErrors = await checkRevisionAnchors(result.manifest, process.cwd());
+      if (revisionErrors.length > 0) {
+        for (const error of revisionErrors) {
+          process.stderr.write(`error: ${error}\n`);
+        }
+        return 1;
+      }
     }
     process.stdout.write(
       `valid: ${inputFile} (${result.manifest.scenarios.length} scenarios)\n`
