@@ -216,7 +216,7 @@ function runCli(
 
 test("the example manifest passes through the CLI", () => {
   const example = join(repoRoot, "scenarios/oracle-v1.example.json");
-  const result = runCli(["validate", example], repoRoot);
+  const result = runCli(["validate", example, "--source-root", repoRoot], repoRoot);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /valid:/);
 });
@@ -226,7 +226,7 @@ test("an invalid manifest is rejected by the CLI", async () => {
   try {
     const bad = join(dir, "bad.json");
     await writeFile(bad, JSON.stringify({ ...base, revision: "b12d651" }));
-    const result = runCli(["validate", bad], dir);
+    const result = runCli(["validate", bad, "--source-root", repoRoot], dir);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /full 40-character git commit SHA/);
   } finally {

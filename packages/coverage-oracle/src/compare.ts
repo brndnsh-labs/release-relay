@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolveSourceFile } from "./anchors.js";
 import type { ReportFile, ReportObservationV1, ScanReportV1 } from "./report.js";
 import type {
   ConfidenceBand,
@@ -349,9 +349,16 @@ export async function compareReports(
 
   const anchorLines = new Map<string, number>();
   for (const scenario of manifest.scenarios) {
+    const sourcePath = await resolveSourceFile(rootDir, scenario.source.file);
+    if (sourcePath === null) {
+      errors.push(
+        `${scenario.id}: source file ${scenario.source.file} is outside source root`
+      );
+      continue;
+    }
     let content: string;
     try {
-      content = await readFile(resolve(rootDir, scenario.source.file), "utf8");
+      content = await readFile(sourcePath, "utf8");
     } catch {
       errors.push(
         `${scenario.id}: source file ${scenario.source.file} could not be read`

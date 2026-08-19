@@ -1,5 +1,5 @@
 import { type ScanReportV2, validateReport } from "./report.js";
-import { getHeadCommit } from "./revision.js";
+import { checkSourceRoot, getHeadCommit } from "./revision.js";
 import type { OracleManifest } from "./schema.js";
 import { mapConfidence, validateSnapshot } from "./snapshot.js";
 
@@ -42,6 +42,11 @@ export async function normalizeSnapshot(
         `snapshot.releaseRelayRevision ${snapshot.releaseRelayRevision} does not match manifest.revision ${manifest.revision}`
       ]
     };
+  }
+
+  const sourceRootErrors = checkSourceRoot(rootDir, { requireClean: true });
+  if (sourceRootErrors.length > 0) {
+    return { ok: false, errors: sourceRootErrors };
   }
 
   const head = getHeadCommit(rootDir);

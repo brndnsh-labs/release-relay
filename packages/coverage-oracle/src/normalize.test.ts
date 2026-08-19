@@ -286,38 +286,37 @@ test("normalization keeps identity, revision, completion, bounds, and fields fai
 
 test("CLI normalization emits a byte-stable v2 report", async () => {
   await withRepo(async (dir, revision) => {
-    const manifestPath = join(dir, "manifest.json");
-    const snapshotPath = join(dir, "snapshot.json");
-    await writeFile(manifestPath, JSON.stringify(manifest(revision), null, 2));
-    await writeFile(snapshotPath, JSON.stringify(snapshot(revision), null, 2));
-    const cli = join(repoRoot, "packages/coverage-oracle/dist/cli.js");
-    const first = spawnSync(
-      process.execPath,
-      [
+    const toolDir = await mkdtemp(join(tmpdir(), "normalize-v2-tool-"));
+    try {
+      const manifestPath = join(toolDir, "manifest.json");
+      const snapshotPath = join(toolDir, "snapshot.json");
+      await writeFile(manifestPath, JSON.stringify(manifest(revision), null, 2));
+      await writeFile(snapshotPath, JSON.stringify(snapshot(revision), null, 2));
+      const cli = join(repoRoot, "packages/coverage-oracle/dist/cli.js");
+      const args = [
         cli,
         "normalize",
         manifestPath,
         snapshotPath,
         "--breakscope-revision",
-        BREAKSCOPE_REV
-      ],
-      { cwd: dir, encoding: "utf8" }
-    );
-    assert.equal(first.status, 0, first.stderr);
-    const second = spawnSync(
-      process.execPath,
-      [
-        cli,
-        "normalize",
-        manifestPath,
-        snapshotPath,
-        "--breakscope-revision",
-        BREAKSCOPE_REV
-      ],
-      { cwd: dir, encoding: "utf8" }
-    );
-    assert.equal(second.status, 0, second.stderr);
-    assert.equal(second.stdout, first.stdout);
-    assert.equal(JSON.parse(first.stdout).reportVersion, 2);
+        BREAKSCOPE_REV,
+        "--source-root",
+        dir
+      ];
+      const first = spawnSync(process.execPath, args, {
+        cwd: toolDir,
+        encoding: "utf8"
+      });
+      assert.equal(first.status, 0, first.stderr);
+      const second = spawnSync(process.execPath, args, {
+        cwd: toolDir,
+        encoding: "utf8"
+      });
+      assert.equal(second.status, 0, second.stderr);
+      assert.equal(second.stdout, first.stdout);
+      assert.equal(JSON.parse(first.stdout).reportVersion, 2);
+    } finally {
+      await rm(toolDir, { recursive: true, force: true });
+    }
   });
 });
