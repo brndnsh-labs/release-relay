@@ -207,6 +207,58 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  scenarios/atomic/stripe-browser-checkout-handoff:
+    dependencies:
+      '@stripe/stripe-js':
+        specifier: ^9.13.0
+        version: 9.13.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/stripe-checkout-session:
+    dependencies:
+      stripe:
+        specifier: ^22.5.0
+        version: 22.5.0(@types/node@24.13.3)
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/stripe-customer-portal:
+    dependencies:
+      stripe:
+        specifier: ^22.5.0
+        version: 22.5.0(@types/node@24.13.3)
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/stripe-unrelated-negative:
+    dependencies:
+      stripe:
+        specifier: ^22.5.0
+        version: 22.5.0(@types/node@24.13.3)
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
 packages:
 
   '@anthropic-ai/sdk@0.117.1':
@@ -335,6 +387,10 @@ packages:
 
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
+
+  '@stripe/stripe-js@9.13.0':
+    resolution: {integrity: sha512-/0c72BUgzzVkVTlsw5uBn8x3waTdVJ/PZGfQ6jY1eu6K7olUPf4d9lgDPA9/0sIdsR8j7o3QIG8fOCO6ItcL7A==}
+    engines: {node: '>=12.16'}
 
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
@@ -637,6 +693,8 @@ snapshots:
       '@octokit/openapi-types': 28.0.0
 
   '@stablelib/base64@1.0.1': {}
+
+  '@stripe/stripe-js@9.13.0': {}
 
   '@types/node@24.13.3':
     dependencies:
