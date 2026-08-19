@@ -116,6 +116,45 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  scenarios/atomic/github-maintainer-cli:
+    dependencies:
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/github-release-helper:
+    dependencies:
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/github-unrelated-negative:
+    dependencies:
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
 packages:
 
   '@anthropic-ai/sdk@0.117.1':
