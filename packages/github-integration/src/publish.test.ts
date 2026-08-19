@@ -333,3 +333,61 @@ test("maps revoked provider access to a safe refusal", async () => {
     assert.equal(authorization.value.canPublish, false);
   }
 });
+
+test("treats repository scope case-insensitively for getAuthorization and previewRelease", async () => {
+  const configured: RepositoryRef = { owner: "acme", name: "widget" };
+  const api = new FakeWriteApi();
+  const publisher = createGitHubPublisher(api, { repository: configured });
+
+  const authorized = await publisher.getAuthorization({
+    operationId: "case-1",
+    repository: { owner: "AcMe", name: "WiDgEt" }
+  });
+  assert.equal(authorized.status, "completed");
+
+  const preview = publisher.previewRelease({
+    operationId: "case-2",
+    workspaceId: "workspace-1",
+    repository: { owner: "AcMe", name: "WiDgEt" },
+    authorizationRevision: "revision",
+    tag: "v1.2.3",
+    title: "Release",
+    body: "Body"
+  });
+  assert.equal(preview.repository.owner, "AcMe");
+  assert.equal(preview.repository.name, "WiDgEt");
+
+  assert.deepEqual(
+    await publisher.getAuthorization({
+      operationId: "case-3",
+      repository: { owner: "other", name: "widget" }
+    }),
+    {
+      status: "refused",
+      operationId: "case-3",
+      errorClass: "invalid-input"
+    }
+  );
+  assert.deepEqual(
+    await publisher.getAuthorization({
+      operationId: "case-4",
+      repository: { owner: "acme", name: "other" }
+    }),
+    {
+      status: "refused",
+      operationId: "case-4",
+      errorClass: "invalid-input"
+    }
+  );
+  assert.throws(() =>
+    publisher.previewRelease({
+      operationId: "case-5",
+      workspaceId: "workspace-1",
+      repository: { owner: "other", name: "widget" },
+      authorizationRevision: "revision",
+      tag: "v1.2.3",
+      title: "Release",
+      body: "Body"
+    })
+  );
+});
