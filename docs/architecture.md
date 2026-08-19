@@ -88,9 +88,15 @@ marked from GitHub's `Reverts owner/repo#N` body pattern, and contributors are
 the range's commit authors rather than the repository's all-time list. An
 identical or commit-less range selects no candidates; prior releases stay
 separated as context. Known bounded ceilings: the unpaginated comparison caps
-`commits` at 250, and pull request discovery is bounded by the adapter's page
-limit over `pulls.list` sorted by recency — a merged pull request outside that
-recency window is conservatively excluded (documented fallbacks, never silent).
+`commits` at 250, and pull request and linked-issue discovery is bounded by the
+adapter's page limit over `pulls.list` and `issues.listForRepo` sorted by
+recency — a merged pull request outside that recency window is conservatively
+excluded, and a linked issue outside the issues window is omitted from the
+issue summaries while the retained pull request still carries its link identity
+(documented fallbacks, never silent). A comparison response that claims commits
+but carries no parseable commit list, or whose repository identity cannot be
+established from its URL, is rejected as invalid input rather than treated as
+an empty range.
 The separate GitHub write adapter uses `repos.get` for the current publication
 authorization check, `repos.getReleaseByTag` for reconciliation, and
 `repos.createRelease` only after preview hash, confirmation, expiry, and access

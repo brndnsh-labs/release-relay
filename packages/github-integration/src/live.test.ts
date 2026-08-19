@@ -257,6 +257,55 @@ test("rejects comparison responses whose repository identity conflicts with scop
   });
 });
 
+test("rejects comparison responses whose repository identity cannot be established", async () => {
+  for (const html_url of [
+    undefined,
+    "not a url",
+    "https://example.com/compare/a...b"
+  ]) {
+    const result = await compareWith(
+      apiWith({
+        compareCommits: () =>
+          response(
+            html_url === undefined
+              ? { status: "ahead", total_commits: 1, commits: [{ sha: RANGE_SHA_A }] }
+              : compareResponse({ html_url })
+          )
+      })
+    );
+    assert.deepEqual(result, {
+      status: "failed",
+      operationId: "compare-1",
+      errorClass: "invalid-input"
+    });
+  }
+});
+
+test("rejects comparison responses that claim commits but carry none", async () => {
+  const missing = await compareWith(
+    apiWith({
+      compareCommits: () => response({ status: "ahead", total_commits: 2 })
+    })
+  );
+  assert.deepEqual(missing, {
+    status: "failed",
+    operationId: "compare-1",
+    errorClass: "invalid-input"
+  });
+
+  const unparseable = await compareWith(
+    apiWith({
+      compareCommits: () =>
+        response(compareResponse({ commits: [{ no_sha: true }, "junk"] }))
+    })
+  );
+  assert.deepEqual(unparseable, {
+    status: "failed",
+    operationId: "compare-1",
+    errorClass: "invalid-input"
+  });
+});
+
 test("bounds pull request fan-out to maxPages", async () => {
   const calls: number[] = [];
   const api = apiWith({

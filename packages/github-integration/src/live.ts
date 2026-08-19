@@ -195,7 +195,8 @@ function escapeRegExp(value: string): string {
 
 // The comparison response itself carries the repository identity
 // (https://github.com/{owner}/{repo}/compare/...). A response naming a
-// different repository than the configured scope is rejected, not mapped.
+// different repository than the configured scope — or one whose identity
+// cannot be established at all — is rejected, not mapped.
 function checkComparisonIdentity(
   comparison: Record<string, unknown>,
   scope: RepositoryRef
@@ -204,10 +205,10 @@ function checkComparisonIdentity(
   const match = url?.match(/^https:\/\/[^/]+\/([^/]+)\/([^/]+)\/compare\//);
   const [, owner, name] = match ?? [];
   if (
-    owner !== undefined &&
-    name !== undefined &&
-    (owner.toLowerCase() !== scope.owner.toLowerCase() ||
-      name.toLowerCase() !== scope.name.toLowerCase())
+    owner === undefined ||
+    name === undefined ||
+    owner.toLowerCase() !== scope.owner.toLowerCase() ||
+    name.toLowerCase() !== scope.name.toLowerCase()
   ) {
     throw new AdapterError("invalid-input");
   }
@@ -354,13 +355,20 @@ export function createGitHubReader(
         });
 
         // An identical or commit-less range selects nothing, even when
-        // repository-wide endpoints contain old closed work.
+        // repository-wide endpoints contain old closed work. A response that
+        // claims commits but carries no parseable commit list is malformed,
+        // not empty — reject it loudly instead of silently dropping every
+        // candidate.
         const totalCommits = numberValue(comparison, "total_commits") ?? 0;
+        if (totalCommits > 0 && !Array.isArray(comparison.commits)) {
+          throw new AdapterError("invalid-input");
+        }
         if (
           comparison.status === "identical" ||
           totalCommits === 0 ||
           rangeShas.size === 0
         ) {
+          if (totalCommits > 0) throw new AdapterError("invalid-input");
           return {
             range,
             pullRequests: [],
