@@ -114,12 +114,14 @@ export async function normalizeSnapshot(
   if (errors.length > 0) return { ok: false, errors };
 
   // Build report files sorted deterministically
-  const reportFiles = [...snapshot.files]
-    .map((f) => ({
-      file: f.file,
-      disposition: f.disposition as ScanReportV2["files"][number]["disposition"],
-      ...(f.reason ? { reason: f.reason } : {})
-    }))
+  const reportFiles: ScanReportV2["files"] = [...snapshot.files]
+    .map((f): ScanReportV2["files"][number] => {
+      const disposition: ScanReportV2["files"][number]["disposition"] =
+        f.disposition === "excluded" ? "excluded" : "scanned";
+      return f.reason
+        ? { file: f.file, disposition, reason: f.reason }
+        : { file: f.file, disposition };
+    })
     .sort((a, b) => a.file.localeCompare(b.file));
 
   reportObservations.sort((a, b) => {
@@ -139,7 +141,7 @@ export async function normalizeSnapshot(
     releaseRelayRevision: snapshot.releaseRelayRevision,
     breakscopeRevision: snapshot.breakscopeRevision,
     ruleset: snapshot.ruleset,
-    files: reportFiles as ScanReportV2["files"],
+    files: reportFiles,
     observations: reportObservations
   };
 
