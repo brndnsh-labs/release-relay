@@ -181,6 +181,42 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  scenarios/atomic/http-base-plus-path:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/http-full-url:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/http-narrow-wrapper:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/atomic/http-template-literal:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   scenarios/atomic/openai-release-note-drafter:
     dependencies:
       openai:
@@ -273,6 +309,44 @@ importers:
       stripe:
         specifier: ^22.5.0
         version: 22.5.0(@types/node@24.13.3)
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/negative-controls/attribution-controls:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.117.1
+        version: 0.117.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/negative-controls/path-dispositions:
+    dependencies:
+      openai:
+        specifier: ^7.5.0
+        version: 7.5.0
+      stripe:
+        specifier: ^22.5.0
+        version: 22.5.0(@types/node@24.13.3)
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scenarios/negative-controls/unrelated-providers:
     devDependencies:
       '@types/node':
         specifier: 24.13.3

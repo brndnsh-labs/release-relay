@@ -618,6 +618,445 @@
       "rationale": "The legacy announcement function is an ordinary function invoked only through .call with a plain record whose `client` field is a display label string, so the `this.client` access can never reach the provider client held by the real sponsor-portal class; the reviewed expectation pins that no class-field name reuse or cross-class leakage attributes the billing-portal call site to this file. The workspace compiles only and is never invoked.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "http-atomic-full-url-drafter",
+      "purpose": "Draft a short release body through a raw Responses endpoint request addressed by its full fixed URL, rather than through the SDK.",
+      "source": {
+        "file": "scenarios/atomic/http-full-url/src/index.ts",
+        "anchor": "full-url-draft-request"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "evidenceKind": "http-request",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises the full-URL raw HTTP call shape against the documented drafting endpoint, distinct from the SDK call sites; the request can never execute, the input is inert fixed text, and the API key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "http-atomic-base-path-reviewer",
+      "purpose": "Review a short release summary through a raw Messages endpoint request assembled from a fixed base host plus a path suffix.",
+      "source": {
+        "file": "scenarios/atomic/http-base-plus-path/src/index.ts",
+        "anchor": "base-path-review-request"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "evidenceKind": "http-request",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises the base-plus-path raw HTTP call shape against the documented review endpoint, with the version header matching the value the installed SDK itself sends; the request can never execute, the input is an inert summary, and the API key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "http-atomic-template-portal-opener",
+      "purpose": "Open a sponsor billing-portal session through a raw Stripe endpoint request addressed by a template literal over a fixed base host.",
+      "source": {
+        "file": "scenarios/atomic/http-template-literal/src/index.ts",
+        "anchor": "template-portal-request"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "evidenceKind": "http-request",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises the template-literal raw HTTP call shape against the documented billing-portal endpoint with form encoding; the request can never execute, the customer and return URL are inert structural examples, and the secret key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "http-atomic-narrow-wrapper-reader",
+      "purpose": "Read a comparison range through a narrow local fetch wrapper that applies GitHub REST conventions, rather than through the SDK.",
+      "source": {
+        "file": "scenarios/atomic/http-narrow-wrapper/src/index.ts",
+        "anchor": "wrapper-compare-request"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "evidenceKind": "http-request",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises the narrow-wrapper raw HTTP call shape: the provider evidence sits at the actual call inside the wrapper while the resource path is assembled at the caller; the request can never execute and the token is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-unrelated-slack-notify",
+      "purpose": "A deliberate unrelated-provider control: a real Slack chat.postMessage call that must not be attributed to any supported provider.",
+      "source": {
+        "file": "scenarios/negative-controls/unrelated-providers/src/slack.ts",
+        "anchor": "slack-release-message-request"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The usage is genuine and correctly Slack's own HTTP API with a bearer token, but no supported provider SDK, client, host, or call exists in this file, so none of the product call sites may be attributed to it. The workspace compiles only and the bot token is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-unrelated-twilio-notify",
+      "purpose": "A deliberate unrelated-provider control: a real Twilio Messages API call that must not be attributed to any supported provider.",
+      "source": {
+        "file": "scenarios/negative-controls/unrelated-providers/src/twilio.ts",
+        "anchor": "twilio-maintainer-text-request"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The usage is genuine and correctly Twilio's own HTTP API with basic auth over an accounts path, but no supported provider SDK, client, host, or call exists in this file, so none of the product call sites may be attributed to it. The workspace compiles only and the credentials are explicit parameters, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-unrelated-aws-archive",
+      "purpose": "A deliberate unrelated-provider control: a real S3 object-URL builder that must not be attributed to any supported provider.",
+      "source": {
+        "file": "scenarios/negative-controls/unrelated-providers/src/aws.ts",
+        "anchor": "archive-object-url-builder"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The helper formats a genuine S3 object URL from an explicit bucket, key, and fixed region, but it issues no request and no supported provider SDK, client, host, or call exists in this file, so none of the product call sites may be attributed to it. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-unrelated-discord-notify",
+      "purpose": "A deliberate unrelated-provider control: a real Discord webhook announcement that must not be attributed to any supported provider.",
+      "source": {
+        "file": "scenarios/negative-controls/unrelated-providers/src/discord.ts",
+        "anchor": "discord-release-announce-request"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The usage is genuine and correctly Discord's own webhook API, but no supported provider SDK, client, host, or call exists in this file, so none of the product call sites may be attributed to it. The workspace compiles only and the webhook credentials are explicit parameters, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-local-provider-names",
+      "purpose": "A deliberate local-name control: display-model classes that reuse the provider class names without any provider import, client, or endpoint.",
+      "source": {
+        "file": "scenarios/negative-controls/attribution-controls/src/local-provider-names.ts",
+        "anchor": "local-provider-name-badges"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The classes are local UI badge models whose names coincide with provider class names, but the file imports no provider SDK, constructs no client, and names no provider endpoint, so no provider observation may be attributed to it. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-endpoint-routing-catalog",
+      "purpose": "A deliberate lookup-table control: endpoint-looking strings in a pure routing-data file that never issues a request.",
+      "source": {
+        "file": "scenarios/negative-controls/attribution-controls/src/endpoint-catalog.ts",
+        "anchor": "endpoint-routing-catalog"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The catalog is documentation and allowlist data containing provider endpoint strings, but a data literal is not provider usage: no client is constructed and no request is issued, so no provider observation may be attributed to this file. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-shadowed-binding",
+      "purpose": "A deliberate shadowed-binding control: a real provider import referenced only in a type position, with its name shadowed by a plain local string.",
+      "source": {
+        "file": "scenarios/negative-controls/attribution-controls/src/shadowed-binding.ts",
+        "anchor": "shadowed-name-label"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The type-only import is real but no client is constructed and no call is issued; the inner binding shadows the imported name with a version-label string, so a name-only match must not attribute the review call site to this file. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-dynamic-dispatch",
+      "purpose": "A deliberate dynamic-value control: a configuration-driven dispatcher whose eventual provider and identifier cannot be proven from source.",
+      "source": {
+        "file": "scenarios/negative-controls/attribution-controls/src/dynamic-dispatch.ts",
+        "anchor": "unresolved-dispatch-config"
+      },
+      "expectations": [
+        {
+          "outcome": "uncertain",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The dispatch target is resolved at runtime from serialized configuration, so the source is intentionally insufficient for a deterministic conclusion about which provider, if any, the eventual call touches; the reviewed outcome is explicit uncertainty, which must not be collapsed into a confident negative. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "negative-foreign-host-proxy",
+      "purpose": "A deliberate foreign-host control: an internal gateway client whose paths resemble provider API paths but whose host is not a provider endpoint.",
+      "source": {
+        "file": "scenarios/negative-controls/attribution-controls/src/foreign-host-proxy.ts",
+        "anchor": "foreign-host-gateway-request"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The gateway fetches a private internal host and the path builders deliberately resemble provider API paths, but path shape alone without the provider host must not constitute provider usage, so neither the review nor the drafting call site may be attributed to this file. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "disposition-test-path-draft",
+      "purpose": "A deliberate path-disposition control: real OpenAI SDK usage placed under a test path, expected to be demoted below the alertable band.",
+      "source": {
+        "file": "scenarios/negative-controls/path-dispositions/src/test/draft-controls.ts",
+        "anchor": "test-path-draft-control"
+      },
+      "expectations": [
+        {
+          "outcome": "demoted",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "demoted"
+        }
+      ],
+      "rationale": "The SDK usage is genuine and correctly attributed, but the source-path policy deliberately demotes test paths below the alertable band, so the reviewed expectation is a demoted observation rather than an alertable one. The workspace compiles only, no test runner executes this file, and the API key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "disposition-fixture-path-portal",
+      "purpose": "A deliberate path-disposition control: real Stripe SDK usage placed under a fixture path, expected to be demoted below the alertable band.",
+      "source": {
+        "file": "scenarios/negative-controls/path-dispositions/src/fixture/portal-sample.ts",
+        "anchor": "fixture-path-portal-sample"
+      },
+      "expectations": [
+        {
+          "outcome": "demoted",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "demoted"
+        }
+      ],
+      "rationale": "The SDK usage is genuine and correctly attributed, but the source-path policy deliberately demotes fixture paths below the alertable band, so the reviewed expectation is a demoted observation rather than an alertable one. The workspace compiles only and is never invoked, the secret key is an explicit parameter, and the customer id and return URL are inert structural examples.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "disposition-generated-snapshot",
+      "purpose": "A deliberate path-disposition control: a generated file containing a provider-looking request, expected to be excluded from scanning by policy.",
+      "source": {
+        "file": "scenarios/negative-controls/path-dispositions/src/generated/provider-snapshot.ts",
+        "anchor": "generated-snapshot-request"
+      },
+      "expectations": [
+        {
+          "outcome": "excluded",
+          "confidence": "none",
+          "reason": "generated source path"
+        }
+      ],
+      "rationale": "The file is marked and placed as generated output and contains a provider-looking probe request that never executes, but the source-path policy deliberately excludes generated files from scanning entirely, so the reviewed expectation is a named file exclusion rather than any observation, positive or negative.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "disposition-vendor-legacy",
+      "purpose": "A deliberate path-disposition control: a vendored legacy file containing a provider-looking request, expected to be excluded from scanning by policy.",
+      "source": {
+        "file": "scenarios/negative-controls/path-dispositions/src/vendor/legacy-relay-client.ts",
+        "anchor": "vendor-legacy-request"
+      },
+      "expectations": [
+        {
+          "outcome": "excluded",
+          "confidence": "none",
+          "reason": "vendored source path"
+        }
+      ],
+      "rationale": "The file is vendored third-party code kept unmodified for reference and contains a provider-looking legacy request that never executes, but the source-path policy deliberately excludes vendored files from scanning entirely, so the reviewed expectation is a named file exclusion rather than any observation, positive or negative.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
