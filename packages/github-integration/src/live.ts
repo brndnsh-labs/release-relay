@@ -318,6 +318,9 @@ function parseComparison(
   }
 
   const rangeShas = new Set<string>();
+  // contributor-derivation-from-commits: contributors are range-commit authors
+  // derived from comparison commits[] (author.login/html_url), not via the
+  // repository all-time contributors endpoint — see docs/architecture.md.
   const rangeContributors = new Map<string, ContributorSummary>();
   for (const item of commitItems) {
     if (!isRecord(item)) throw new AdapterError("invalid-input");

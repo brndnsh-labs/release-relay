@@ -61,21 +61,14 @@
         {
           "outcome": "observation",
           "provider": "github",
-          "identifier": "repos.listContributors",
-          "evidenceKind": "sdk-call",
-          "confidence": "alertable"
-        },
-        {
-          "outcome": "observation",
-          "provider": "github",
           "identifier": "repos.listReleases",
           "evidenceKind": "sdk-call",
           "confidence": "alertable"
         }
       ],
-      "rationale": "The approved live-read composition root uses official Octokit REST methods for the documented source-gathering workflow; tests inject a fake and never execute the calls.",
+      "rationale": "The approved live-read composition root uses official Octokit REST methods for the documented source-gathering workflow; contributors are range-commit authors derived from the comparison commits[] (see contributor-derivation-from-commits in live.ts), not the repository's all-time contributors endpoint — tests inject a fake and never execute the calls.",
       "reviewedBy": "maintainer",
-      "reviewedAt": "2026-08-18"
+      "reviewedAt": "2026-08-19"
     },
     {
       "id": "github-release-publisher",
