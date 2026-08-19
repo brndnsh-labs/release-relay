@@ -27,7 +27,7 @@ The App's public permission includes Issues write because that is the reviewed B
 
 Do not request the execution approval until all are cleared:
 
-1. [Breakscope #76](https://github.com/brndnsh-labs/Breakscope/issues/76) must settle and implement a reviewed operator export that produces the source-free scan snapshot needed by [Release Relay #47](https://github.com/brndnsh-labs/release-relay/issues/47) to construct the `reportVersion: 1` interchange. Do not substitute ad hoc production SQL, retain repository source, or invent file dispositions from missing rows.
+1. [Breakscope #76](https://github.com/brndnsh-labs/Breakscope/issues/76) is approved and the `snapshot-v1` export contract is implemented; `coverage-oracle normalize` (`packages/coverage-oracle/src/normalize.ts`, `scenarios/snapshot-v1.example.json`) validates it offline and maps it to `reportVersion:1`. Do not substitute ad hoc production SQL, retain repository source, or invent file dispositions from missing rows.
 2. `GET https://breakscope.dev/api/health/deep` returned `503` with `deadLetters: false`. `bin/breakscope-admin status` reported 62 `repository.scan.dead-letter` rows, only one with a replay marker. The dry-run replay plan listed 61 unreplayed jobs. [Breakscope #77](https://github.com/brndnsh-labs/Breakscope/issues/77) owns diagnosis and the separately approved bounded replay/disposition; do not roll that production write into the canary approval.
 3. The ordinary authenticated `gh` token cannot enumerate the App installation's selected repositories. Verify repository selection in the GitHub installation settings or through a correctly scoped App/user token without exposing that token. Determine whether Release Relay is already selected before proposing any mutation.
 4. `scenarios/oracle-v1.example.json` is pinned to the complete reviewed M5 corpus revision `3eb4ee65f7e2c7045301144622edab53f0ab8a54` (every scenario file and anchor resolves at that commit; `coverage-oracle validate --check-revision` proves the pin without network access). Verify the target remains the reviewed manifest revision, not mutable `main`, before a canary target is chosen.
@@ -104,6 +104,7 @@ Stop here. Ask Brandon to approve the exact repository-selection action and firs
    ```sh
    git checkout "$(node -e 'const m=require("./scenarios/oracle-v1.example.json"); process.stdout.write(m.revision)')"
    coverage-oracle validate scenarios/oracle-v1.example.json --check-revision
+   coverage-oracle normalize scenarios/oracle-v1.example.json <breakscope-snapshot.json> --breakscope-revision <full-sha> --output <normalized-report.json>
    coverage-oracle validate-report <normalized-report.json>
    coverage-oracle compare scenarios/oracle-v1.example.json <normalized-report.json> --json
    ```
