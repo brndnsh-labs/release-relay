@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import type { CandidateItem, DraftContent } from "./workspace.js";
+import type { DraftFinding, DraftGeneration, StructuredReleaseDraft } from "./draft.js";
+import type { CandidateItem } from "./workspace.js";
 
 export const providers = ["github", "openai", "anthropic", "stripe"] as const;
 
@@ -196,29 +197,13 @@ export interface GitHubPublisher {
 
 export type DraftValidationState = "validated" | "validation-failed";
 
-export interface DraftProvenance {
-  provider: AiProvider;
-  sourceIdentities: readonly string[];
-  validation: DraftValidationState;
-}
-
-export interface StructuredReleaseDraft {
-  content: DraftContent;
-  provenance: DraftProvenance;
-}
-
 export interface DraftRequest {
   operationId: OperationId;
   candidates: readonly CandidateItem[];
 }
 
 export interface ReleaseDrafter {
-  draft(request: DraftRequest): Promise<OperationResult<StructuredReleaseDraft>>;
-}
-
-export interface DraftFinding {
-  code: string;
-  sourceIdentity?: string;
+  draft(request: DraftRequest): Promise<OperationResult<DraftGeneration>>;
 }
 
 export interface DraftReview {

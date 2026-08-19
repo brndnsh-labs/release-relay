@@ -67,6 +67,16 @@ with an application operation ID and safe error class rather than raw provider d
 Hosted Checkout or portal sessions do not imply membership state; membership is
 projected only from verified webhook events.
 
+A structured release draft carries a title, summary, grouped change items,
+acknowledgements, and an optional supporter note, plus provenance naming the
+provider, model, configuration identity, generated-at time source, and parent
+revision. Draft responses are runtime-validated against the supplied candidate
+identities: unknown fields, unsupported or duplicate source citations, and empty
+useful content are rejected. Refusal, provider failure, invalid structure, and
+unsupported claims remain distinct outcomes. Human edits are recorded as separate
+revisions that reference their parent without provider labels, so generated text
+and maintainer text stay distinguishable.
+
 ## State and hand-off
 
 Initial stories use in-memory repositories and synchronous orchestration so the domain contract can stabilize. A future hosted persistence decision is separate. If durable background work is added, the hand-off from an accepted request to a worker must be transactional and idempotent; the web process must not claim success for work it merely attempted to enqueue.

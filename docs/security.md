@@ -27,6 +27,8 @@ Sending a release candidate to OpenAI or Anthropic is data egress. A live call r
 
 Structured responses are runtime-validated. Generated claims retain source references and unsupported references are rejected or shown as unresolved. Raw prompts, complete provider responses, and maintainer edits are not logged.
 
+Generated drafts carry explicit provenance: provider, model and configuration identity, the source of the generated-at time, and the parent revision. Human edits are stored as distinct revisions linked to their parent rather than relabeled as provider output.
+
 Switching providers does not implicitly resend previous content. Asking a second provider to review a draft is a separate visible action.
 
 ## GitHub

@@ -49,19 +49,74 @@ test("candidate items and revision origins are retained", () => {
       id: "draft-1",
       origin: "generated",
       provider: "openai",
-      content: { title: "Release", summary: "Summary" }
+      model: "draft-model-1",
+      configurationId: "config-1",
+      generatedAt: "2026-02-03T04:05:06.000Z",
+      timeSource: "operation-clock",
+      body: {
+        title: "Release",
+        summary: "Summary",
+        changeGroups: [
+          {
+            kind: "changed",
+            heading: "Changed",
+            items: [
+              { summary: candidate.title, sourceIdentities: [candidate.sourceIdentity] }
+            ]
+          }
+        ],
+        acknowledgements: []
+      }
     })
+  );
+  const human = {
+    id: "draft-2",
+    origin: "human" as const,
+    parentRevisionId: "draft-1",
+    body: {
+      title: "Edited release",
+      summary: "Edited summary",
+      changeGroups: [],
+      acknowledgements: []
+    }
+  };
+  workspace = unwrap(addRevision(workspace, human));
+  assert.deepEqual(workspace.candidates, [candidate]);
+  const generated = workspace.revisions[0];
+  const edited = workspace.revisions[1];
+  assert.equal(generated?.origin, "generated");
+  assert.equal(edited?.origin, "human");
+  assert.equal("provider" in (edited ?? {}), false);
+  assert.equal(edited?.parentRevisionId, generated?.id);
+});
+
+test("revision lineage rejects unknown parents and duplicate ids", () => {
+  let workspace = createWorkspace("release-1");
+  workspace = move(workspace, "drafting");
+  assert.deepEqual(
+    addRevision(workspace, {
+      id: "draft-1",
+      origin: "human",
+      parentRevisionId: "missing-revision",
+      body: { title: "No", summary: "No", changeGroups: [], acknowledgements: [] }
+    }),
+    { ok: false, error: "revision-parent-unknown" }
   );
   workspace = unwrap(
     addRevision(workspace, {
-      id: "draft-2",
+      id: "draft-1",
       origin: "human",
-      content: { title: "Edited release", summary: "Edited summary" }
+      body: { title: "Yes", summary: "Yes", changeGroups: [], acknowledgements: [] }
     })
   );
-  assert.deepEqual(workspace.candidates, [candidate]);
-  assert.equal(workspace.revisions[0]?.origin, "generated");
-  assert.equal(workspace.revisions[1]?.origin, "human");
+  assert.deepEqual(
+    addRevision(workspace, {
+      id: "draft-1",
+      origin: "human",
+      body: { title: "Again", summary: "Again", changeGroups: [], acknowledgements: [] }
+    }),
+    { ok: false, error: "revision-id-already-used" }
+  );
 });
 
 test("invalid transitions reject skipped approval and published edits", () => {
@@ -98,7 +153,7 @@ test("invalid transitions reject skipped approval and published edits", () => {
     addRevision(published, {
       id: "draft-3",
       origin: "human",
-      content: { title: "No", summary: "No" }
+      body: { title: "No", summary: "No", changeGroups: [], acknowledgements: [] }
     }),
     { ok: false, error: "published-workspace-is-immutable" }
   );

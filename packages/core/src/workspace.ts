@@ -1,3 +1,6 @@
+import type { DraftBody, DraftTimeSource } from "./draft.js";
+import type { AiProvider } from "./ports.js";
+
 export const workspaceStates = [
   "collecting",
   "drafting",
@@ -17,22 +20,23 @@ export interface CandidateItem {
   maintainerAnnotation?: string;
 }
 
-export interface DraftContent {
-  title: string;
-  summary: string;
-}
-
 export type DraftRevision =
   | {
       id: string;
       origin: "human";
-      content: DraftContent;
+      parentRevisionId?: string;
+      body: DraftBody;
     }
   | {
       id: string;
       origin: "generated";
-      provider: "openai" | "anthropic";
-      content: DraftContent;
+      parentRevisionId?: string;
+      provider: AiProvider;
+      model: string;
+      configurationId: string;
+      generatedAt: string;
+      timeSource: DraftTimeSource;
+      body: DraftBody;
     };
 
 export type PublishResult =
@@ -51,6 +55,8 @@ export type WorkspaceError =
   | "transition-not-allowed"
   | "published-workspace-is-immutable"
   | "revision-not-allowed-in-state"
+  | "revision-parent-unknown"
+  | "revision-id-already-used"
   | "publish-requires-approved-workspace"
   | "publish-result-not-confirmed"
   | "publish-result-invalid";
@@ -100,6 +106,15 @@ export function addRevision(
   }
   if (workspace.state !== "drafting" && workspace.state !== "review") {
     return { ok: false, error: "revision-not-allowed-in-state" };
+  }
+  if (workspace.revisions.some((existing) => existing.id === revision.id)) {
+    return { ok: false, error: "revision-id-already-used" };
+  }
+  if (
+    revision.parentRevisionId !== undefined &&
+    !workspace.revisions.some((existing) => existing.id === revision.parentRevisionId)
+  ) {
+    return { ok: false, error: "revision-parent-unknown" };
   }
   return {
     ok: true,
