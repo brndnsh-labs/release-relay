@@ -8,7 +8,14 @@ import type {
   ReleaseDrafter,
   SafeErrorClass
 } from "@release-relay/core";
-import { changeGroupKinds, validateReleaseDraft } from "@release-relay/core";
+import {
+  DRAFT_BODY_SCHEMA_NAME,
+  draftBodyJsonSchema,
+  normalizeStrictDraftBody,
+  validateReleaseDraft
+} from "@release-relay/core";
+
+export { DRAFT_BODY_SCHEMA_NAME, draftBodyJsonSchema } from "@release-relay/core";
 
 export interface BoundedDraftCandidate {
   sourceIdentity: string;
@@ -33,63 +40,6 @@ export function buildDraftInput(
         : { maintainerAnnotation: candidate.maintainerAnnotation })
     }));
 }
-
-export const DRAFT_BODY_SCHEMA_NAME = "release_draft_body";
-
-export const draftBodyJsonSchema: Record<string, unknown> = {
-  type: "object",
-  properties: {
-    title: { type: "string", minLength: 1 },
-    summary: { type: "string", minLength: 1 },
-    supporterNote: { type: ["string", "null"] },
-    changeGroups: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...changeGroupKinds] },
-          heading: { type: "string", minLength: 1 },
-          items: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                summary: { type: "string", minLength: 1 },
-                sourceIdentities: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 1
-                }
-              },
-              required: ["summary", "sourceIdentities"],
-              additionalProperties: false
-            }
-          }
-        },
-        required: ["kind", "heading", "items"],
-        additionalProperties: false
-      }
-    },
-    acknowledgements: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          contributor: { type: "string", minLength: 1 },
-          sourceIdentities: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1
-          }
-        },
-        required: ["contributor", "sourceIdentities"],
-        additionalProperties: false
-      }
-    }
-  },
-  required: ["title", "summary", "supporterNote", "changeGroups", "acknowledgements"],
-  additionalProperties: false
-};
 
 const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 
@@ -228,14 +178,6 @@ function parseResponse(raw: unknown): ParsedResponse {
   }
 }
 
-// A strict schema still marks an absent optional field with JSON null rather
-// than omitting the key; core's postconditions treat that field as absent.
-function normalizeBody(bodyJson: unknown): unknown {
-  if (!isRecord(bodyJson) || bodyJson.supporterNote !== null) return bodyJson;
-  const { supporterNote: _supporterNote, ...rest } = bodyJson;
-  return rest;
-}
-
 async function run(
   operationId: OperationId,
   action: () => Promise<DraftGeneration>
@@ -271,7 +213,7 @@ export function createOpenAiDrafter(
         });
         const { bodyJson, createdAtSeconds } = parseResponse(raw);
         const candidateDraft: unknown = {
-          body: normalizeBody(bodyJson),
+          body: normalizeStrictDraftBody(bodyJson),
           provenance: {
             provider: "openai",
             model: options.model,

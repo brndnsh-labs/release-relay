@@ -319,6 +319,74 @@ export function validateReleaseDraft(
   return { ok: true, draft: { body, provenance } };
 }
 
+export const DRAFT_BODY_SCHEMA_NAME = "release_draft_body";
+
+// A single provider-neutral JSON Schema for DraftBody: both the OpenAI Responses
+// adapter (text.format) and the Anthropic Messages adapter (output_config.format)
+// consume this same structural description for their strict/structured output request.
+export const draftBodyJsonSchema: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    title: { type: "string", minLength: 1 },
+    summary: { type: "string", minLength: 1 },
+    supporterNote: { type: ["string", "null"] },
+    changeGroups: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...changeGroupKinds] },
+          heading: { type: "string", minLength: 1 },
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                summary: { type: "string", minLength: 1 },
+                sourceIdentities: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1
+                }
+              },
+              required: ["summary", "sourceIdentities"],
+              additionalProperties: false
+            }
+          }
+        },
+        required: ["kind", "heading", "items"],
+        additionalProperties: false
+      }
+    },
+    acknowledgements: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          contributor: { type: "string", minLength: 1 },
+          sourceIdentities: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1
+          }
+        },
+        required: ["contributor", "sourceIdentities"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["title", "summary", "supporterNote", "changeGroups", "acknowledgements"],
+  additionalProperties: false
+};
+
+// A strict schema still marks an absent optional field with JSON null rather
+// than omitting the key; validateReleaseDraft's postconditions treat it as absent.
+export function normalizeStrictDraftBody(bodyJson: unknown): unknown {
+  if (!isRecord(bodyJson) || bodyJson.supporterNote !== null) return bodyJson;
+  const { supporterNote: _supporterNote, ...rest } = bodyJson;
+  return rest;
+}
+
 export function citedDraftSourceIdentities(
   draft: StructuredReleaseDraft
 ): readonly string[] {

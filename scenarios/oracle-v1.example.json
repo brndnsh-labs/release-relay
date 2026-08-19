@@ -130,6 +130,26 @@
       "rationale": "The explicit live-AI composition root uses the official Responses SDK method with a strict schema and disabled storage; tests inject a fake and never execute the call.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "anthropic-draft-reviewer",
+      "purpose": "Review or produce an alternate structured release draft through the isolated Anthropic Messages adapter.",
+      "source": {
+        "file": "packages/anthropic-integration/src/review.ts",
+        "anchor": "review-adapter-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The explicit live-AI composition root uses the official Messages SDK method with structured json_schema output; tests inject a fake and never execute the call.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
