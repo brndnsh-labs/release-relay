@@ -399,16 +399,37 @@ function apiFromOctokit(client: OctokitClient): GitHubApi {
   return {
     getRepository: (params) => client.rest.repos.get(params),
     compareCommits: (params) => client.rest.repos.compareCommits(params),
-    listPullRequests: (params) =>
-      client.rest.pulls.list(params as Parameters<typeof client.rest.pulls.list>[0]),
-    listIssues: (params) =>
-      client.rest.issues.listForRepo(
-        params as Parameters<typeof client.rest.issues.listForRepo>[0]
-      ),
-    listReleases: (params) =>
-      client.rest.repos.listReleases(
-        params as Parameters<typeof client.rest.repos.listReleases>[0]
-      )
+    listPullRequests: (params) => {
+      const listParams: Parameters<typeof client.rest.pulls.list>[0] = {
+        owner: params.owner,
+        repo: params.repo,
+        page: params.page,
+        per_page: params.per_page,
+        state: params.state,
+        sort: params.sort,
+        direction: params.direction
+      };
+      return client.rest.pulls.list(listParams);
+    },
+    listIssues: (params) => {
+      const listParams: Parameters<typeof client.rest.issues.listForRepo>[0] = {
+        owner: params.owner,
+        repo: params.repo,
+        page: params.page,
+        per_page: params.per_page,
+        state: params.state
+      };
+      return client.rest.issues.listForRepo(listParams);
+    },
+    listReleases: (params) => {
+      const listParams: Parameters<typeof client.rest.repos.listReleases>[0] = {
+        owner: params.owner,
+        repo: params.repo,
+        page: params.page,
+        per_page: params.per_page
+      };
+      return client.rest.repos.listReleases(listParams);
+    }
   };
 }
 

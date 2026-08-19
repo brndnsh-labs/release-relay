@@ -233,8 +233,16 @@ export function createOpenAiDrafter(
 function apiFromClient(client: OpenAI): OpenAiApi {
   // draft-adapter-client
   return {
-    createResponse: (params) =>
-      client.responses.create(params as Parameters<typeof client.responses.create>[0])
+    createResponse: (params) => {
+      const createParams: Parameters<typeof client.responses.create>[0] = {
+        model: params.model,
+        input: params.input,
+        instructions: params.instructions,
+        store: params.store,
+        text: params.text
+      };
+      return client.responses.create(createParams);
+    }
   };
 }
 
