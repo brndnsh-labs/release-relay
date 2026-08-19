@@ -325,6 +325,46 @@
       "rationale": "This call is genuine, correctly attributed OpenAI SDK evidence for a real embeddings-search maintainer utility, but it is deliberately unrelated to the structured, source-grounded release draft that is Release Relay's documented OpenAI product operation, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for the product-critical call site.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "anthropic-atomic-draft-reviewer",
+      "purpose": "Isolate a maintainer tool that reviews a short release-note summary through a direct Messages client with a narrow input, rather than through Release Relay's injected review adapter.",
+      "source": {
+        "file": "scenarios/atomic/anthropic-draft-reviewer/src/index.ts",
+        "anchor": "draft-review-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises a direct-construction Messages client shape distinct from packages/anthropic-integration/src/review.ts's injected adapter, using the same product-plausible literal model identifier as its tests; the code never runs and the API key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "anthropic-atomic-unrelated-negative",
+      "purpose": "A deliberate same-provider negative: real Anthropic SDK usage for a different supported operation outside Release Relay's documented product workflow, so it is not conflated with the draft-review call site.",
+      "source": {
+        "file": "scenarios/atomic/anthropic-unrelated-negative/src/index.ts",
+        "anchor": "unrelated-negative-count-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "anthropic",
+          "identifier": "messages.countTokens",
+          "evidenceKind": "sdk-call",
+          "confidence": "supporting"
+        }
+      ],
+      "rationale": "This call is genuine, correctly attributed Anthropic SDK evidence for a real token-budget-estimation maintainer utility, but it is deliberately unrelated to the structured draft review or alternate draft that is Release Relay's documented Anthropic product operation, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for the product-critical call site.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
