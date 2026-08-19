@@ -623,16 +623,33 @@ export function createGitHubPublisher(
 function apiFromOctokit(client: OctokitClient): GitHubWriteApi {
   // write-adapter-client
   return {
-    getRepository: (params) =>
-      client.rest.repos.get(params as Parameters<typeof client.rest.repos.get>[0]),
-    getReleaseByTag: (params) =>
-      client.rest.repos.getReleaseByTag(
-        params as Parameters<typeof client.rest.repos.getReleaseByTag>[0]
-      ),
-    createRelease: (params) =>
-      client.rest.repos.createRelease(
-        params as Parameters<typeof client.rest.repos.createRelease>[0]
-      )
+    getRepository: (params) => {
+      const getParams: Parameters<typeof client.rest.repos.get>[0] = {
+        owner: params.owner,
+        repo: params.repo
+      };
+      return client.rest.repos.get(getParams);
+    },
+    getReleaseByTag: (params) => {
+      const getParams: Parameters<typeof client.rest.repos.getReleaseByTag>[0] = {
+        owner: params.owner,
+        repo: params.repo,
+        tag: params.tag
+      };
+      return client.rest.repos.getReleaseByTag(getParams);
+    },
+    createRelease: (params) => {
+      const createParams: Parameters<typeof client.rest.repos.createRelease>[0] = {
+        owner: params.owner,
+        repo: params.repo,
+        tag_name: params.tag_name,
+        name: params.name,
+        body: params.body,
+        draft: params.draft,
+        prerelease: params.prerelease
+      };
+      return client.rest.repos.createRelease(createParams);
+    }
   };
 }
 

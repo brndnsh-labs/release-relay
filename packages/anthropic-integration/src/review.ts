@@ -315,8 +315,16 @@ export function createAnthropicAlternateDrafter(
 function apiFromClient(client: Anthropic): AnthropicApi {
   // review-adapter-client
   return {
-    createMessage: (params) =>
-      client.messages.create(params as Parameters<typeof client.messages.create>[0])
+    createMessage: (params) => {
+      const createParams: Parameters<typeof client.messages.create>[0] = {
+        model: params.model,
+        max_tokens: params.max_tokens,
+        system: params.system,
+        messages: [...params.messages],
+        output_config: params.output_config
+      };
+      return client.messages.create(createParams);
+    }
   };
 }
 

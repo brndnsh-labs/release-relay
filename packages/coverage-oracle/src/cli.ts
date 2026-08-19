@@ -96,11 +96,15 @@ function parseArgs(args: string[]): {
     )
       return null;
     if (options.sourceRoot === undefined) return null;
-    return { command, inputFile: args[1] as string, ...options };
+    if (args[1] === undefined) return null;
+    const inputFile: string = args[1];
+    return { command, inputFile, ...options };
   }
   if (command === "validate-report") {
     if (args.length !== 2) return null;
-    return { command, inputFile: args[1] as string, json: false, checkRevision: false };
+    if (args[1] === undefined) return null;
+    const inputFile: string = args[1];
+    return { command, inputFile, json: false, checkRevision: false };
   }
   if (command === "compare") {
     const options = parseOptions(args.slice(3));
@@ -112,17 +116,21 @@ function parseArgs(args: string[]): {
       options.sourceRoot === undefined
     )
       return null;
+    if (args[1] === undefined || args[2] === undefined) return null;
+    const inputFile: string = args[1];
+    const reportFile: string = args[2];
     return {
       command,
-      inputFile: args[1] as string,
-      reportFile: args[2] as string,
+      inputFile,
+      reportFile,
       ...options
     };
   }
   if (command === "normalize") {
     if (args.length < 3) return null;
-    const manifest = args[1] as string;
-    const snapshot = args[2] as string;
+    if (args[1] === undefined || args[2] === undefined) return null;
+    const manifest: string = args[1];
+    const snapshot: string = args[2];
     const options = parseOptions(args.slice(3));
     if (
       options === null ||
@@ -174,17 +182,18 @@ async function main(): Promise<number> {
   }
 
   if (command === "validate") {
-    const sourceRootErrors = checkSourceRoot(sourceRoot as string, {
+    if (sourceRoot === undefined) {
+      process.stderr.write(`${USAGE}\n`);
+      return 1;
+    }
+    const sourceRootErrors = checkSourceRoot(sourceRoot, {
       requireClean: checkRevision
     });
     if (sourceRootErrors.length > 0) {
       for (const error of sourceRootErrors) process.stderr.write(`error: ${error}\n`);
       return 1;
     }
-    const anchorErrors = await checkSourceAnchors(
-      result.manifest,
-      sourceRoot as string
-    );
+    const anchorErrors = await checkSourceAnchors(result.manifest, sourceRoot);
     if (anchorErrors.length > 0) {
       for (const error of anchorErrors) {
         process.stderr.write(`error: ${error}\n`);
@@ -192,10 +201,7 @@ async function main(): Promise<number> {
       return 1;
     }
     if (checkRevision) {
-      const revisionErrors = await checkRevisionAnchors(
-        result.manifest,
-        sourceRoot as string
-      );
+      const revisionErrors = await checkRevisionAnchors(result.manifest, sourceRoot);
       if (revisionErrors.length > 0) {
         for (const error of revisionErrors) {
           process.stderr.write(`error: ${error}\n`);
@@ -210,9 +216,17 @@ async function main(): Promise<number> {
   }
 
   if (command === "normalize") {
-    const snapshotFile = parsed.snapshotFile as string;
-    const breakscopeRevision = parsed.breakscopeRevision as string;
-    const output = parsed.output as string | undefined;
+    const snapshotFile = parsed.snapshotFile;
+    const breakscopeRevision = parsed.breakscopeRevision;
+    const output = parsed.output;
+    if (
+      snapshotFile === undefined ||
+      breakscopeRevision === undefined ||
+      sourceRoot === undefined
+    ) {
+      process.stderr.write(`${USAGE}\n`);
+      return 1;
+    }
     const snapshotJson = await readJson(snapshotFile);
     if (!snapshotJson.ok) {
       process.stderr.write(`${snapshotJson.error}\n`);
@@ -222,7 +236,7 @@ async function main(): Promise<number> {
       result.manifest,
       snapshotJson.input,
       breakscopeRevision,
-      sourceRoot as string
+      sourceRoot
     );
     if (!normalized.ok) {
       for (const error of normalized.errors) {
@@ -244,7 +258,11 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const reportJson = await readJson(reportFile ?? "");
+  if (reportFile === undefined || sourceRoot === undefined) {
+    process.stderr.write(`${USAGE}\n`);
+    return 1;
+  }
+  const reportJson = await readJson(reportFile);
   if (!reportJson.ok) {
     process.stderr.write(`${reportJson.error}\n`);
     return 1;
@@ -263,14 +281,14 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const sourceRootErrors = checkSourceRoot(sourceRoot as string, {
+  const sourceRootErrors = checkSourceRoot(sourceRoot, {
     requireClean: true
   });
   if (sourceRootErrors.length > 0) {
     for (const error of sourceRootErrors) process.stderr.write(`error: ${error}\n`);
     return 1;
   }
-  const head = getHeadCommit(sourceRoot as string);
+  const head = getHeadCommit(sourceRoot);
   if (head === null) {
     process.stderr.write(`error: could not resolve HEAD in ${sourceRoot}\n`);
     return 1;
@@ -285,7 +303,7 @@ async function main(): Promise<number> {
   const comparison = await compareReports(
     result.manifest,
     reportResult.report,
-    sourceRoot as string
+    sourceRoot
   );
   if (!comparison.ok) {
     for (const error of comparison.errors) {
