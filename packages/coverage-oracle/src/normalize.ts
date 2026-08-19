@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { getHeadCommit } from "./revision.js";
 import { validateReport, type ScanReport } from "./report.js";
 import type { OracleManifest } from "./schema.js";
@@ -22,7 +21,6 @@ async function readFileAtRevision(
   file: string,
   rootDir: string
 ): Promise<{ ok: true; content: string } | { ok: false; error: string }> {
-  const { spawnSync } = await import("node:child_process");
   const r = spawnSync("git", ["show", `${revision}:${file}`], {
     cwd: rootDir,
     encoding: "utf8"
