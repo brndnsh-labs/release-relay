@@ -9,6 +9,8 @@ import type {
 } from "@release-relay/core";
 import { projectMembership } from "@release-relay/core";
 
+const MAX_WEBHOOK_BYTES = 1_000_000;
+
 // Only subscription-lifecycle events drive membership state. Anything else
 // (invoices, charges, disputes, ...) is acknowledged and ignored without
 // ever reaching projection — an explicit allow list, not a deny list.
@@ -64,6 +66,13 @@ export function createStripeWebhookVerifier(
   if (webhookSecret.trim() === "") throw new Error("webhookSecret is required");
   return {
     parse(rawBody, signatureHeader) {
+      const byteLength =
+        typeof rawBody === "string"
+          ? Buffer.byteLength(rawBody, "utf8")
+          : rawBody.length;
+      if (byteLength > MAX_WEBHOOK_BYTES) {
+        return { kind: "invalid-signature" };
+      }
       let event: Stripe.Event;
       try {
         // webhook-verify-client
