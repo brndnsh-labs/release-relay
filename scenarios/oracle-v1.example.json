@@ -285,6 +285,46 @@
       "rationale": "This call is genuine, correctly attributed GitHub SDK evidence, but it is deliberately unrelated to any Release Relay product operation (repository identity, comparisons, pull requests, issues, contributors, releases, or the confirmed release write), so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for product-critical call sites.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "openai-atomic-release-note-drafter",
+      "purpose": "Isolate a maintainer tool that drafts a short release-note summary through a direct Responses client with bounded structured input, rather than through Release Relay's injected drafting adapter.",
+      "source": {
+        "file": "scenarios/atomic/openai-release-note-drafter/src/index.ts",
+        "anchor": "release-note-draft-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises a direct-construction Responses client shape distinct from packages/openai-integration/src/draft.ts's injected adapter, using the same product-plausible literal model identifier as its tests; the code never runs and the API key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "openai-atomic-unrelated-negative",
+      "purpose": "A deliberate same-provider negative: real OpenAI SDK usage for a different supported operation outside Release Relay's documented product workflow, so it is not conflated with the release-drafting call site.",
+      "source": {
+        "file": "scenarios/atomic/openai-unrelated-negative/src/index.ts",
+        "anchor": "unrelated-negative-embed-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "openai",
+          "identifier": "embeddings.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "supporting"
+        }
+      ],
+      "rationale": "This call is genuine, correctly attributed OpenAI SDK evidence for a real embeddings-search maintainer utility, but it is deliberately unrelated to the structured, source-grounded release draft that is Release Relay's documented OpenAI product operation, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for the product-critical call site.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
