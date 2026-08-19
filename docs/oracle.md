@@ -91,11 +91,11 @@ An intentional source and oracle change may ship in the same PR, but the PR narr
 
 ## Normalized scan reports
 
-The normalized scan report is the versioned interchange between Breakscope and the coverage oracle. It is implemented in `packages/coverage-oracle` (validator + comparator + CLI) with a synthetic validating example at `scenarios/report-v1.example.json`. The example is hand-authored and never derived from detector output.
+The normalized scan report is the versioned interchange between Breakscope and the coverage oracle. It is implemented in `packages/coverage-oracle` (validator + comparator + CLI) with a synthetic validating example at `scenarios/report-v2.example.json`. The example is hand-authored and never derived from detector output.
 
 ```json
 {
-  "reportVersion": 1,
+  "reportVersion": 2,
   "manifestVersion": 1,
   "releaseRelayRevision": "full git commit SHA",
   "breakscopeRevision": "full git commit SHA",
@@ -107,8 +107,8 @@ The normalized scan report is the versioned interchange between Breakscope and t
   "observations": [
     {
       "file": "packages/github-integration/src/publish.ts",
-      "anchor": "write-adapter-client",
-      "line": 624,
+      "lineStart": 620,
+      "lineEnd": 630,
       "provider": "github",
       "identifier": "repos.createRelease",
       "evidenceKind": "sdk-call",
@@ -118,10 +118,11 @@ The normalized scan report is the versioned interchange between Breakscope and t
 }
 ```
 
-- `reportVersion` and `manifestVersion` are both `1`.
+- `reportVersion` is `2`; `manifestVersion` remains `1` until the separately versioned oracle manifest changes.
 - `releaseRelayRevision` and `breakscopeRevision` are full 40-character SHAs; the comparator requires `releaseRelayRevision` to equal the manifest `revision` (a mismatch fails comparison, because the oracle and the scan must pin the same commit).
-- `ruleset` is the Breakscope ruleset identifier; `files` carries per-file dispositions (`scanned` or `excluded` + `reason`); `observations` are keyed by `file` + `anchor` + `provider` + `identifier`, with their resolved line, evidence kind, and confidence band.
-- `anchor` carries the oracle's stable location identity. The report records the line the normalizer resolved for the anchor; the comparator independently re-resolves the anchor against the pinned revision and compares the two. A location mismatch surfaces when the reported line does not match the locally resolved anchor line.
+- `ruleset` is the Breakscope ruleset identifier; `files` carries per-file dispositions (`scanned` or `excluded` + `reason`); each observation preserves the source-free detector `file`, inclusive `lineStart`–`lineEnd` range, provider, identifier, evidence kind, and reviewed confidence band.
+- Normalization validates the snapshot and identity pins, then preserves every validated observation. It does not resolve oracle anchors, demand a reviewed expectation match, discard unrecognized evidence, or generate oracle truth from detector output. The comparator is responsible for classifying an observation as expected or unexpected.
+- Input `files` and observations may arrive in any order. Normalized output is sorted deterministically by file and observation location/evidence fields.
 
 ### CLI
 
@@ -132,11 +133,11 @@ coverage-oracle compare <manifest.json> <report.json> [--json]
 coverage-oracle normalize <manifest.json> <breakscope-snapshot.json> --breakscope-revision <full-sha> [--output <path>]
 ```
 
-`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file or anchor is missing or duplicated in that Git tree; it performs no network fetch. `normalize` validates the versioned source-free Breakscope snapshot (`scenarios/snapshot-v1.example.json`), requires exact repository `brndnsh-labs/release-relay` (ID `1338698763`), `releaseRelayRevision == manifest.revision == HEAD`, `breakscopeRevision` (flag) and `ruleset` (`typescript-deterministic-v5`) identities, `scan.status == completed`, per-file `scanned`/`excluded` dispositions for every manifest source, and anchors that appear exactly once at the pinned revision and are covered by exactly one snapshot observation's `lineStart`–`lineEnd` range; maps numeric confidence through the reviewed `0.9/0.5` thresholds to `alertable/supporting/demoted` and emits deterministic `reportVersion:1` JSON (sorted, validated) or fails closed without partial output. `compare` exits `0` only when there are no `missing`, `mismatched`, or `unexpected` findings; `unresolved` (uncertain) never forces failure. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
+`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file or anchor is missing or duplicated in that Git tree; it performs no network fetch. `normalize` validates the versioned source-free Breakscope snapshot (`scenarios/snapshot-v1.example.json`), requires exact repository `brndnsh-labs/release-relay` (ID `1338698763`), `releaseRelayRevision == manifest.revision == HEAD`, `breakscopeRevision` (flag) and `ruleset` (`typescript-deterministic-v5`) identities, `scan.status == completed`, strict per-file dispositions, observation bounds, and exact fields; maps numeric confidence through the reviewed `0.9/0.5` thresholds to `alertable/supporting/demoted` and emits deterministic, lossless `reportVersion:2` JSON (sorted, validated) or fails closed without partial output. The v1 comparator remains available only for validated v1 reports during the staged migration; `coverage-oracle compare` rejects v2 reports with an explicit unsupported-version error until v2 comparison is implemented. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
 
 ### Runbook
 
-A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate --check-revision`, `coverage-oracle normalize <manifest> <snapshot> --breakscope-revision <sha>`, and `coverage-oracle compare` against the pinned manifest and the normalized report. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report and snapshot are synthetic and must never be generated from current detector output.
+A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate --check-revision` and `coverage-oracle normalize <manifest> <snapshot> --breakscope-revision <sha>`. Comparison of the normalized v2 report is intentionally staged until the v2 comparator ships; do not downgrade or hand-attribute reports to make the v1 comparator accept them. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report and snapshot are synthetic and must never be generated from current detector output.
 
 ## Reports
 

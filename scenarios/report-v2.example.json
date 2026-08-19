@@ -1,5 +1,5 @@
 {
-  "reportVersion": 1,
+  "reportVersion": 2,
   "manifestVersion": 1,
   "releaseRelayRevision": "0123456789abcdef0123456789abcdef01234567",
   "breakscopeRevision": "fedcba9876543210fedcba9876543210fedcba98",
@@ -16,8 +16,8 @@
   "observations": [
     {
       "file": "src/index.ts",
-      "anchor": "repositoryPhase",
-      "line": 5,
+      "lineStart": 5,
+      "lineEnd": 9,
       "provider": "github",
       "identifier": "repos.list",
       "evidenceKind": "sdk-call",
@@ -25,12 +25,21 @@
     },
     {
       "file": "packages/github-integration/src/publish.ts",
-      "anchor": "write-adapter-client",
-      "line": 624,
+      "lineStart": 620,
+      "lineEnd": 630,
       "provider": "github",
       "identifier": "repos.createRelease",
       "evidenceKind": "sdk-call",
       "confidence": "alertable"
+    },
+    {
+      "file": "scenarios/negative-controls/path-dispositions/src/generated/provider-snapshot.ts",
+      "lineStart": 11,
+      "lineEnd": 15,
+      "provider": "openai",
+      "identifier": "responses.create",
+      "evidenceKind": "sdk-call",
+      "confidence": "supporting"
     }
   ]
 }

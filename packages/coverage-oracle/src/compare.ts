@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { ReportFile, ReportObservationV1, ScanReportV1 } from "./report.js";
 import type {
   ConfidenceBand,
   OracleExpectation,
@@ -8,7 +9,6 @@ import type {
   Outcome,
   Provider
 } from "./schema.js";
-import type { ReportFile, ReportObservation, ScanReport } from "./report.js";
 
 export type ComparisonStatus =
   | "matched"
@@ -148,11 +148,11 @@ interface ScenarioContext {
   scenario: OracleScenario;
   anchorLine: number;
   fileEntry: ReportFile | undefined;
-  observations: ReportObservation[];
-  consumed: Set<ReportObservation>;
+  observations: ReportObservationV1[];
+  consumed: Set<ReportObservationV1>;
 }
 
-function availableObservations(context: ScenarioContext): ReportObservation[] {
+function availableObservations(context: ScenarioContext): ReportObservationV1[] {
   return context.observations.filter(
     (observation) => !context.consumed.has(observation)
   );
@@ -331,7 +331,7 @@ function compareUncertainExpectation(context: ScenarioContext): ExpectationCompa
 
 export async function compareReports(
   manifest: OracleManifest,
-  report: ScanReport,
+  report: ScanReportV1,
   rootDir: string
 ): Promise<ComparisonResult> {
   const errors: string[] = [];
@@ -378,10 +378,10 @@ export async function compareReports(
       anchorLine: anchorLines.get(scenario.id) ?? 0,
       fileEntry: report.files.find((file) => file.file === scenario.source.file),
       observations: [],
-      consumed: new Set<ReportObservation>()
+      consumed: new Set<ReportObservationV1>()
     });
   }
-  const observationsWithoutScenario: ReportObservation[] = [];
+  const observationsWithoutScenario: ReportObservationV1[] = [];
   for (const observation of report.observations) {
     const context = contexts.get(scenarioKey(observation.file, observation.anchor));
     if (context === undefined) {
@@ -449,7 +449,7 @@ export async function compareReports(
 
   const unexpectedObservations: UnexpectedObservation[] = [];
   const collectUnexpected = (
-    observation: ReportObservation,
+    observation: ReportObservationV1,
     scenarioId: string | null
   ): void => {
     const dispositionNote =

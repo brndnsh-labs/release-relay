@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { compareReports, type ComparisonReport } from "./compare.js";
-import { validateManifest, type OracleManifest } from "./schema.js";
-import { validateReport, type ScanReport } from "./report.js";
+import { type ComparisonReport, compareReports } from "./compare.js";
+import { type ScanReportV1, validateReport } from "./report.js";
+import { type OracleManifest, validateManifest } from "./schema.js";
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -84,7 +84,7 @@ function baseManifest(): OracleManifest {
   };
 }
 
-function baseReport(): ScanReport {
+function baseReport(): ScanReportV1 {
   return {
     reportVersion: 1,
     manifestVersion: 1,
@@ -149,6 +149,8 @@ async function runCompare(
   );
   const reportResult = validateReport(reportInput);
   assert.ok(reportResult.ok, reportResult.ok ? "" : reportResult.errors.join("; "));
+  assert.equal(reportResult.report.reportVersion, 1);
+  if (reportResult.report.reportVersion !== 1) assert.fail("expected a v1 report");
   const comparison = await compareReports(
     manifestResult.manifest,
     reportResult.report,
@@ -180,7 +182,10 @@ test("a matching report compares clean", async () => {
 
 test("missing observation is reported", async () => {
   await withSources(async (dir) => {
-    const mutated = { ...baseReport(), observations: [] as ScanReport["observations"] };
+    const mutated = {
+      ...baseReport(),
+      observations: [] as ScanReportV1["observations"]
+    };
     // keep demoted observation removed too so only observed missing matters
     const report = await runCompare(baseManifest(), mutated, dir);
     assert.equal(report.ok, false);
@@ -294,7 +299,7 @@ test("wrong disposition is a disposition mismatch", async () => {
       file.file === "observed.ts"
         ? { ...file, disposition: "excluded", reason: "generated source path" }
         : file
-    ) as ScanReport["files"];
+    ) as ScanReportV1["files"];
     const report = await runCompare(baseManifest(), mutated, dir);
     const result = scenarioOf(report, "observed-scenario").results[0]!;
     assert.equal(result.status, "mismatched");
@@ -307,7 +312,7 @@ test("excluded file with wrong reason is a disposition mismatch", async () => {
     const mutated = structuredClone(baseReport());
     mutated.files = mutated.files.map((file) =>
       file.file === "generated.ts" ? { ...file, reason: "vendored source path" } : file
-    ) as ScanReport["files"];
+    ) as ScanReportV1["files"];
     const report = await runCompare(baseManifest(), mutated, dir);
     const result = scenarioOf(report, "generated-scenario").results[0]!;
     assert.equal(result.status, "mismatched");
@@ -414,6 +419,8 @@ test("mismatched revisions are reported as errors", async () => {
     };
     const reportResult = validateReport(reportInput);
     assert.ok(reportResult.ok);
+    assert.equal(reportResult.report.reportVersion, 1);
+    if (reportResult.report.reportVersion !== 1) assert.fail("expected a v1 report");
     const comparison = await compareReports(
       manifest.manifest,
       reportResult.report,
@@ -434,6 +441,8 @@ test("unresolvable anchors are reported as errors", async () => {
     assert.ok(manifestResult.ok);
     const reportResult = validateReport(report);
     assert.ok(reportResult.ok);
+    assert.equal(reportResult.report.reportVersion, 1);
+    if (reportResult.report.reportVersion !== 1) assert.fail("expected a v1 report");
     const comparison = await compareReports(
       manifestResult.manifest,
       reportResult.report,
@@ -494,7 +503,7 @@ test("the compare CLI reports mismatches and supports --json", async () => {
 
     const badReport = {
       ...baseReport(),
-      observations: [] as ScanReport["observations"]
+      observations: [] as ScanReportV1["observations"]
     };
     await writeFile(reportPath, JSON.stringify(badReport));
     const mismatch = runCli(["compare", manifestPath, reportPath], dir);
@@ -504,6 +513,20 @@ test("the compare CLI reports mismatches and supports --json", async () => {
     assert.equal(mismatchJson.status, 1);
     const parsedMismatch = JSON.parse(mismatchJson.stdout) as ComparisonReport;
     assert.equal(parsedMismatch.ok, false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("the compare CLI rejects v2 reports until the v2 comparator ships", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-cli-"));
+  try {
+    const manifestPath = join(dir, "manifest.json");
+    const reportPath = join(repoRoot, "scenarios/report-v2.example.json");
+    await writeFile(manifestPath, JSON.stringify(baseManifest()));
+    const result = runCli(["compare", manifestPath, reportPath], dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /does not yet support reportVersion 2/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

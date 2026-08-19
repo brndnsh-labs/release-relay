@@ -227,6 +227,12 @@ async function main(): Promise<number> {
     }
     return 1;
   }
+  if (reportResult.report.reportVersion !== 1) {
+    process.stderr.write(
+      "error: compare does not yet support reportVersion 2; use validate-report or wait for the v2 comparator\n"
+    );
+    return 1;
+  }
 
   const comparison = await compareReports(
     result.manifest,
