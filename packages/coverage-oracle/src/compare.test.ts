@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -25,6 +25,14 @@ const SOURCES: Record<string, string> = {
     "export const first = 1;\n// generated-anchor\nexport const second = 2;\n",
   "dynamic.ts": "export const first = 1;\n// dynamic-anchor\nexport const second = 2;\n"
 };
+
+function git(cwd: string, args: string[]): { status: number | null; stdout: string } {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  return {
+    status: result.status,
+    stdout: typeof result.stdout === "string" ? result.stdout : ""
+  };
+}
 
 function baseScenario(
   id: string,
@@ -482,20 +490,31 @@ function runCli(
 }
 
 test("the compare CLI reports mismatches and supports --json", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-cli-"));
+  const sourceDir = await mkdtemp(join(tmpdir(), "coverage-compare-cli-source-"));
+  const toolDir = await mkdtemp(join(tmpdir(), "coverage-compare-cli-tool-"));
   try {
     for (const [name, content] of Object.entries(SOURCES)) {
-      await writeFile(join(dir, name), content);
+      await writeFile(join(sourceDir, name), content);
     }
-    const manifestPath = join(dir, "manifest.json");
-    const reportPath = join(dir, "report.json");
-    await writeFile(manifestPath, JSON.stringify(baseManifest()));
-    await writeFile(reportPath, JSON.stringify(baseReport()));
-    const ok = runCli(["compare", manifestPath, reportPath], dir);
+    git(sourceDir, ["init"]);
+    git(sourceDir, ["config", "user.email", "test@test.com"]);
+    git(sourceDir, ["config", "user.name", "test"]);
+    git(sourceDir, ["add", "."]);
+    git(sourceDir, ["commit", "-m", "source"]);
+    const revision = git(sourceDir, ["rev-parse", "HEAD"]).stdout.trim();
+    const manifestPath = join(toolDir, "manifest.json");
+    const reportPath = join(toolDir, "report.json");
+    await writeFile(manifestPath, JSON.stringify({ ...baseManifest(), revision }));
+    await writeFile(
+      reportPath,
+      JSON.stringify({ ...baseReport(), releaseRelayRevision: revision })
+    );
+    const cliArgs = ["compare", manifestPath, reportPath, "--source-root", sourceDir];
+    const ok = runCli(cliArgs, toolDir);
     assert.equal(ok.status, 0, ok.stderr);
     assert.match(ok.stdout, /scenarios=/);
 
-    const jsonOk = runCli(["compare", manifestPath, reportPath, "--json"], dir);
+    const jsonOk = runCli([...cliArgs, "--json"], toolDir);
     assert.equal(jsonOk.status, 0, jsonOk.stderr);
     const parsed = JSON.parse(jsonOk.stdout) as ComparisonReport;
     assert.equal(parsed.ok, true);
@@ -503,18 +522,74 @@ test("the compare CLI reports mismatches and supports --json", async () => {
 
     const badReport = {
       ...baseReport(),
+      releaseRelayRevision: revision,
       observations: [] as ScanReportV1["observations"]
     };
     await writeFile(reportPath, JSON.stringify(badReport));
-    const mismatch = runCli(["compare", manifestPath, reportPath], dir);
+    const mismatch = runCli(cliArgs, toolDir);
     assert.equal(mismatch.status, 1);
     assert.match(mismatch.stdout, /missing/);
-    const mismatchJson = runCli(["compare", manifestPath, reportPath, "--json"], dir);
+    const mismatchJson = runCli([...cliArgs, "--json"], toolDir);
     assert.equal(mismatchJson.status, 1);
     const parsedMismatch = JSON.parse(mismatchJson.stdout) as ComparisonReport;
     assert.equal(parsedMismatch.ok, false);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await rm(sourceDir, { recursive: true, force: true });
+    await rm(toolDir, { recursive: true, force: true });
+  }
+});
+
+test("the compare CLI rejects a source path that escapes through a symlink", async () => {
+  const sourceDir = await mkdtemp(join(tmpdir(), "coverage-compare-cli-source-"));
+  const toolDir = await mkdtemp(join(tmpdir(), "coverage-compare-cli-tool-"));
+  const outsideDir = await mkdtemp(join(tmpdir(), "coverage-compare-outside-"));
+  try {
+    git(sourceDir, ["init"]);
+    git(sourceDir, ["config", "user.email", "test@test.com"]);
+    git(sourceDir, ["config", "user.name", "test"]);
+    const outsideFile = join(outsideDir, "outside.ts");
+    await writeFile(outsideFile, "export const escapedAnchor = 1;\n");
+    await symlink(outsideFile, join(sourceDir, "linked.ts"));
+    git(sourceDir, ["add", "linked.ts"]);
+    git(sourceDir, ["commit", "-m", "link"]);
+    const revision = git(sourceDir, ["rev-parse", "HEAD"]).stdout.trim();
+    const manifest: OracleManifest = {
+      version: 1,
+      revision,
+      scenarios: [
+        baseScenario("symlink-scenario", "linked.ts", "escapedAnchor", [
+          {
+            outcome: "no-observation",
+            provider: "github",
+            identifier: "repos.list",
+            confidence: "none"
+          }
+        ])
+      ]
+    };
+    const report: ScanReportV1 = {
+      reportVersion: 1,
+      manifestVersion: 1,
+      releaseRelayRevision: revision,
+      breakscopeRevision: BREAKSCOPE_REVISION,
+      ruleset: RULESET,
+      files: [{ file: "linked.ts", disposition: "scanned" }],
+      observations: []
+    };
+    const manifestPath = join(toolDir, "manifest.json");
+    const reportPath = join(toolDir, "report.json");
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await writeFile(reportPath, JSON.stringify(report));
+    const result = runCli(
+      ["compare", manifestPath, reportPath, "--source-root", sourceDir],
+      toolDir
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /linked\.ts is outside source root/);
+  } finally {
+    await rm(sourceDir, { recursive: true, force: true });
+    await rm(toolDir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
   }
 });
 
@@ -524,7 +599,10 @@ test("the compare CLI rejects v2 reports until the v2 comparator ships", async (
     const manifestPath = join(dir, "manifest.json");
     const reportPath = join(repoRoot, "scenarios/report-v2.example.json");
     await writeFile(manifestPath, JSON.stringify(baseManifest()));
-    const result = runCli(["compare", manifestPath, reportPath], dir);
+    const result = runCli(
+      ["compare", manifestPath, reportPath, "--source-root", repoRoot],
+      dir
+    );
     assert.equal(result.status, 1);
     assert.match(result.stderr, /does not yet support reportVersion 2/);
   } finally {

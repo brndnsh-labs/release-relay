@@ -4,15 +4,15 @@ import { checkSourceAnchors } from "./anchors.js";
 import { compareReports, formatComparison } from "./compare.js";
 import { normalizeSnapshot } from "./normalize.js";
 import { validateReport } from "./report.js";
-import { checkRevisionAnchors } from "./revision.js";
+import { checkRevisionAnchors, checkSourceRoot, getHeadCommit } from "./revision.js";
 import { validateManifest } from "./schema.js";
 
 const USAGE = [
   "usage:",
-  "  coverage-oracle validate <manifest.json> [--check-revision]",
+  "  coverage-oracle validate <manifest.json> --source-root <path> [--check-revision]",
   "  coverage-oracle validate-report <report.json>",
-  "  coverage-oracle compare <manifest.json> <report.json> [--json]",
-  "  coverage-oracle normalize <manifest.json> <breakscope-snapshot.json> --breakscope-revision <full-sha> [--output <path>]"
+  "  coverage-oracle compare <manifest.json> <report.json> --source-root <path> [--json]",
+  "  coverage-oracle normalize <manifest.json> <breakscope-snapshot.json> --breakscope-revision <full-sha> --source-root <path> [--output <path>]"
 ].join("\n");
 
 async function readJson(
@@ -39,84 +39,100 @@ function parseArgs(args: string[]): {
   inputFile: string;
   reportFile?: string;
   snapshotFile?: string;
-  breakscopeRevision?: string;
-  output?: string;
+  breakscopeRevision?: string | undefined;
+  output?: string | undefined;
+  sourceRoot?: string | undefined;
   json: boolean;
   checkRevision: boolean;
 } | null {
   const command = args[0];
+  const parseOptions = (
+    optionArgs: string[]
+  ): {
+    sourceRoot?: string | undefined;
+    output?: string | undefined;
+    breakscopeRevision?: string | undefined;
+    json: boolean;
+    checkRevision: boolean;
+  } | null => {
+    let sourceRoot: string | undefined;
+    let output: string | undefined;
+    let breakscopeRevision: string | undefined;
+    let json = false;
+    let checkRevision = false;
+    for (let index = 0; index < optionArgs.length; index += 1) {
+      const option = optionArgs[index];
+      if (
+        option === "--source-root" ||
+        option === "--output" ||
+        option === "--breakscope-revision"
+      ) {
+        const value = optionArgs[index + 1];
+        if (value === undefined || value.startsWith("--")) return null;
+        index += 1;
+        if (option === "--source-root") sourceRoot = value;
+        else if (option === "--output") output = value;
+        else breakscopeRevision = value;
+      } else if (option === "--json") {
+        if (json) return null;
+        json = true;
+      } else if (option === "--check-revision") {
+        if (checkRevision) return null;
+        checkRevision = true;
+      } else {
+        return null;
+      }
+    }
+    return { sourceRoot, output, breakscopeRevision, json, checkRevision };
+  };
+
   if (command === "validate") {
-    if (args.length === 2) {
-      return {
-        command,
-        inputFile: args[1] as string,
-        json: false,
-        checkRevision: false
-      };
-    }
-    if (args.length === 3 && args[2] === "--check-revision") {
-      return {
-        command,
-        inputFile: args[1] as string,
-        json: false,
-        checkRevision: true
-      };
-    }
-    return null;
+    const options = parseOptions(args.slice(2));
+    if (
+      options === null ||
+      options.json ||
+      options.output !== undefined ||
+      options.breakscopeRevision !== undefined
+    )
+      return null;
+    if (options.sourceRoot === undefined) return null;
+    return { command, inputFile: args[1] as string, ...options };
   }
   if (command === "validate-report") {
     if (args.length !== 2) return null;
     return { command, inputFile: args[1] as string, json: false, checkRevision: false };
   }
   if (command === "compare") {
-    if (args.length === 3) {
-      return {
-        command,
-        inputFile: args[1] as string,
-        reportFile: args[2] as string,
-        json: false,
-        checkRevision: false
-      };
-    }
-    if (args.length === 4 && args[3] === "--json") {
-      return {
-        command,
-        inputFile: args[1] as string,
-        reportFile: args[2] as string,
-        json: true,
-        checkRevision: false
-      };
-    }
-    return null;
+    const options = parseOptions(args.slice(3));
+    if (
+      options === null ||
+      options.checkRevision ||
+      options.output !== undefined ||
+      options.breakscopeRevision !== undefined ||
+      options.sourceRoot === undefined
+    )
+      return null;
+    return {
+      command,
+      inputFile: args[1] as string,
+      reportFile: args[2] as string,
+      ...options
+    };
   }
   if (command === "normalize") {
-    if (args.length < 5) return null;
+    if (args.length < 3) return null;
     const manifest = args[1] as string;
     const snapshot = args[2] as string;
-    if (args[3] !== "--breakscope-revision") return null;
-    const rev = args[4] as string;
-    if (args.length === 5) {
-      return {
-        command,
-        inputFile: manifest,
-        snapshotFile: snapshot,
-        breakscopeRevision: rev,
-        json: false,
-        checkRevision: false
-      };
-    }
-    if (args.length === 7 && args[5] === "--output") {
-      return {
-        command,
-        inputFile: manifest,
-        snapshotFile: snapshot,
-        breakscopeRevision: rev,
-        output: args[6] as string,
-        json: false,
-        checkRevision: false
-      };
-    }
-    return null;
+    const options = parseOptions(args.slice(3));
+    if (
+      options === null ||
+      options.json ||
+      options.checkRevision ||
+      options.breakscopeRevision === undefined ||
+      options.sourceRoot === undefined
+    )
+      return null;
+    return { command, inputFile: manifest, snapshotFile: snapshot, ...options };
   }
   return null;
 }
@@ -127,7 +143,7 @@ async function main(): Promise<number> {
     process.stderr.write(`${USAGE}\n`);
     return 1;
   }
-  const { command, inputFile, reportFile, json, checkRevision } = parsed;
+  const { command, inputFile, reportFile, json, checkRevision, sourceRoot } = parsed;
 
   const jsonInput = await readJson(inputFile);
   if (!jsonInput.ok) {
@@ -158,7 +174,17 @@ async function main(): Promise<number> {
   }
 
   if (command === "validate") {
-    const anchorErrors = await checkSourceAnchors(result.manifest, process.cwd());
+    const sourceRootErrors = checkSourceRoot(sourceRoot as string, {
+      requireClean: checkRevision
+    });
+    if (sourceRootErrors.length > 0) {
+      for (const error of sourceRootErrors) process.stderr.write(`error: ${error}\n`);
+      return 1;
+    }
+    const anchorErrors = await checkSourceAnchors(
+      result.manifest,
+      sourceRoot as string
+    );
     if (anchorErrors.length > 0) {
       for (const error of anchorErrors) {
         process.stderr.write(`error: ${error}\n`);
@@ -166,7 +192,10 @@ async function main(): Promise<number> {
       return 1;
     }
     if (checkRevision) {
-      const revisionErrors = await checkRevisionAnchors(result.manifest, process.cwd());
+      const revisionErrors = await checkRevisionAnchors(
+        result.manifest,
+        sourceRoot as string
+      );
       if (revisionErrors.length > 0) {
         for (const error of revisionErrors) {
           process.stderr.write(`error: ${error}\n`);
@@ -193,7 +222,7 @@ async function main(): Promise<number> {
       result.manifest,
       snapshotJson.input,
       breakscopeRevision,
-      process.cwd()
+      sourceRoot as string
     );
     if (!normalized.ok) {
       for (const error of normalized.errors) {
@@ -234,10 +263,29 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  const sourceRootErrors = checkSourceRoot(sourceRoot as string, {
+    requireClean: true
+  });
+  if (sourceRootErrors.length > 0) {
+    for (const error of sourceRootErrors) process.stderr.write(`error: ${error}\n`);
+    return 1;
+  }
+  const head = getHeadCommit(sourceRoot as string);
+  if (head === null) {
+    process.stderr.write(`error: could not resolve HEAD in ${sourceRoot}\n`);
+    return 1;
+  }
+  if (head !== result.manifest.revision) {
+    process.stderr.write(
+      `error: manifest.revision ${result.manifest.revision} does not match HEAD ${head}; checkout the pinned revision before comparing\n`
+    );
+    return 1;
+  }
+
   const comparison = await compareReports(
     result.manifest,
     reportResult.report,
-    process.cwd()
+    sourceRoot as string
   );
   if (!comparison.ok) {
     for (const error of comparison.errors) {

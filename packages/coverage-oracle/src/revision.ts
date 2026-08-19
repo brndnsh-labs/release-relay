@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import type { OracleManifest } from "./schema.js";
 
 function git(
@@ -11,6 +13,59 @@ function git(
     stdout: typeof result.stdout === "string" ? result.stdout : "",
     stderr: typeof result.stderr === "string" ? result.stderr : ""
   };
+}
+
+export interface SourceRootOptions {
+  requireClean?: boolean;
+}
+
+/**
+ * Validate the explicit source checkout boundary before any source or Git
+ * reads. The path must be the repository root itself, not a subdirectory of
+ * another checkout.
+ */
+export function checkSourceRoot(
+  rootDir: string,
+  options: SourceRootOptions = {}
+): string[] {
+  if (rootDir.trim() === "") {
+    return ["--source-root must be a non-empty path"];
+  }
+  let isDirectory = false;
+  try {
+    isDirectory = existsSync(rootDir) && statSync(rootDir).isDirectory();
+  } catch {
+    isDirectory = false;
+  }
+  if (!isDirectory) {
+    return [`source root ${rootDir} does not exist or is not a directory`];
+  }
+
+  const root = resolve(rootDir);
+  const topLevelResult = git(["rev-parse", "--show-toplevel"], root);
+  if (topLevelResult.status !== 0) {
+    return [`source root ${rootDir} is not a git repository`];
+  }
+  const topLevel = resolve(topLevelResult.stdout.trim());
+  if (topLevel !== root) {
+    return [
+      `source root ${rootDir} must be the repository root (git root is ${topLevel})`
+    ];
+  }
+
+  if (options.requireClean) {
+    const status = git(["status", "--porcelain", "--untracked-files=all"], root);
+    if (status.status !== 0) {
+      return [`could not inspect source root cleanliness in ${rootDir}`];
+    }
+    if (status.stdout.trim() !== "") {
+      return [
+        `source root ${rootDir} must be clean; uncommitted changes are not allowed`
+      ];
+    }
+  }
+
+  return [];
 }
 
 export function commitExists(revision: string, rootDir: string): boolean {
@@ -44,6 +99,9 @@ export async function checkRevisionAnchors(
   manifest: OracleManifest,
   rootDir: string
 ): Promise<string[]> {
+  const rootErrors = checkSourceRoot(rootDir, { requireClean: true });
+  if (rootErrors.length > 0) return rootErrors;
+
   const errors: string[] = [];
   const revision = manifest.revision;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -326,12 +326,10 @@ test("revision-aware validation passes when HEAD matches and anchors resolve at 
 });
 
 test("CLI --check-revision succeeds for the pinned manifest when checked out at that revision", async () => {
-  // Verify CLI wiring: run `coverage-oracle validate --check-revision` inside a checkout of the pinned commit
+  // Keep the manifest/tool checkout separate from the clean pinned source root.
   const dir = await mkdtemp(join(tmpdir(), "coverage-oracle-cli-rev-"));
+  const toolDir = await mkdtemp(join(tmpdir(), "coverage-oracle-cli-tool-"));
   try {
-    // Clone the current repo at the pinned commit into a temp dir via git worktree-like checkout
-    // Simpler: use git show to write the manifest at the pinned revision and run CLI from that tree's checkout
-    // We reuse the isolated repo approach: create a minimal repo that already passes, then run CLI
     git(dir, ["init"]);
     git(dir, ["config", "user.email", "test@test.com"]);
     git(dir, ["config", "user.name", "test"]);
@@ -363,21 +361,59 @@ test("CLI --check-revision succeeds for the pinned manifest when checked out at 
     git(dir, ["commit", "-m", "init"]);
     const head = git(dir, ["rev-parse", "HEAD"]).stdout.trim();
     manifest.revision = head;
-    const manifestPath = join(dir, "manifest.json");
+    const manifestPath = join(toolDir, "manifest.json");
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
     const distCli = join(repoRoot, "packages/coverage-oracle/dist/cli.js");
-    const result = spawnSync(process.execPath, [distCli, "validate", manifestPath], {
-      cwd: dir,
-      encoding: "utf8"
-    });
+    const result = spawnSync(
+      process.execPath,
+      [distCli, "validate", manifestPath, "--source-root", dir],
+      {
+        cwd: toolDir,
+        encoding: "utf8"
+      }
+    );
     assert.equal(result.status, 0, result.stderr);
     const revResult = spawnSync(
       process.execPath,
-      [distCli, "validate", manifestPath, "--check-revision"],
-      { cwd: dir, encoding: "utf8" }
+      [distCli, "validate", manifestPath, "--source-root", dir, "--check-revision"],
+      { cwd: toolDir, encoding: "utf8" }
     );
     assert.equal(revResult.status, 0, revResult.stderr);
   } finally {
     await rm(dir, { recursive: true, force: true });
+    await rm(toolDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI validation rejects a source path that escapes through a symlink", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n"
+  });
+  const toolDir = await mkdtemp(join(tmpdir(), "coverage-oracle-cli-tool-"));
+  const outsideDir = await mkdtemp(join(tmpdir(), "coverage-oracle-outside-"));
+  try {
+    const outsideFile = join(outsideDir, "outside.ts");
+    await writeFile(outsideFile, "export const escapedAnchor = 1;\n");
+    await symlink(outsideFile, join(repo.dir, "linked.ts"));
+    git(repo.dir, ["add", "linked.ts"]);
+    git(repo.dir, ["commit", "-m", "link"]);
+    const manifest = manifestWith(git(repo.dir, ["rev-parse", "HEAD"]).stdout.trim(), {
+      ...baseScenario,
+      source: { file: "linked.ts", anchor: "escapedAnchor" }
+    });
+    const manifestPath = join(toolDir, "manifest.json");
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const distCli = join(repoRoot, "packages/coverage-oracle/dist/cli.js");
+    const result = spawnSync(
+      process.execPath,
+      [distCli, "validate", manifestPath, "--source-root", repo.dir],
+      { cwd: toolDir, encoding: "utf8" }
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /linked\.ts is outside source root/);
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+    await rm(toolDir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
   }
 });
