@@ -54,6 +54,8 @@ The roadmap should eventually cover these dimensions without combining all of th
 
 Atomic scenarios vary one important dimension at a time. Composed scenarios combine reviewed atomic shapes into believable applications. Seeded generation may permute known templates, but the seed and generated output are committed so failures reproduce exactly.
 
+The first composed scenario, `scenarios/composed/relay-deployment`, covers these matrix dimensions together: client construction through a cached singleton, dependency injection, and a class-held field; call expressions through bracket access and a non-null wrapper; module flow through named exports, a default export, a re-export barrel, and the unambiguous `#relay/*` path alias; deliberately reused `api`, `client`, and `http` names across files; and an ordinary-function `this`-rebinding negative whose rebound receiver cannot reach the class-held client.
+
 ## Negative controls
 
 Negative controls are first-class. They include:
