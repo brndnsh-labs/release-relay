@@ -1,0 +1,19 @@
+{
+  "name": "@release-relay/scenario-composed-relay-deployment",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
+    "@octokit/rest": "^22.0.1",
+    "openai": "^7.5.0",
+    "stripe": "^22.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}

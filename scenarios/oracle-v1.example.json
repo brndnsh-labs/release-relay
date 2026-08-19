@@ -445,6 +445,179 @@
       "rationale": "This call is genuine, correctly attributed Stripe SDK evidence for a real account-balance maintainer utility, but it is deliberately unrelated to sponsor-tier products and prices, Checkout, the billing portal, and signed webhooks, which are Release Relay's documented Stripe product operations, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for product-critical call sites.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-source-reader",
+      "purpose": "Read the comparison range for an upcoming release through a cached singleton client constructed in the same module, inside the composed deployment.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/github/source-reader.ts",
+        "anchor": "source-reader-compare-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The composed deployment's source-gathering module constructs a cached singleton client on first use and reads the documented comparison range in the same file that owns construction; the local binding deliberately reuses the `client` name also bound in the drafting module and the sponsor-portal class, so the no-observation expectation pins that the reused name does not leak the drafting call site across files. The workspace compiles only and the token is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-drafter",
+      "purpose": "Draft the release body through a default-exported drafting function that unwraps its optional client with a non-null wrapper, inside the composed deployment.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/drafting/drafter.ts",
+        "anchor": "drafter-responses-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The drafting module is consumed through its default export, constructs its own Responses client from an explicit key parameter, and reaches it through a non-null wrapper that fails loudly on missing configuration before any request is prepared; the local binding reuses the `client` name also bound in the source-gathering module, so the no-observation expectation pins that no GitHub comparison call is attributed to this file. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-reviewer",
+      "purpose": "Review the release draft through a dependency-injected Messages client reached by bracket access, inside the composed deployment.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/review/reviewer.ts",
+        "anchor": "reviewer-messages-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The review module owns no construction: the composition root at scenarios/composed/relay-deployment/src/relay.ts constructs the Messages client and injects it as the `api` parameter, and the call site reaches the messages namespace through bracket access to vary the call-expression shape from the dot-access forms elsewhere. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-sponsor-portal",
+      "purpose": "Open a sponsor billing-portal session through a class-held client field reached from an arrow-function class property, inside the composed deployment.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/billing/sponsor-portal.ts",
+        "anchor": "sponsor-portal-session-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The sponsor-portal module owns no construction: the composition root at scenarios/composed/relay-deployment/src/relay.ts constructs the Stripe client and injects it into the class field, and the portal entry point is an arrow-function property that reads the class-held client through `this`, exercising the arrow-function class-access shape at the actual call site. The workspace compiles only and is never given a real client.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-internal-http",
+      "purpose": "A deliberate composed-deployment negative: a narrow internal fetch wrapper whose generic `http` name is reused across files, with no provider import or call, expecting no provider attribution.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/internal/http.ts",
+        "anchor": "internal-status-http-wrapper"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "github",
+          "identifier": "repos.compareCommits",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The internal HTTP wrapper only fetches deployment-internal status endpoints and its `http` name is one of the generic names deliberately reused across the composed deployment; the file contains no provider import, client, or call, so the reviewed expectation is that none of the deployment's four provider call sites is attributed to it. The workspace compiles only and the fetch target is an explicit parameter, never a provider host.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-internal-status",
+      "purpose": "A deliberate composed-deployment negative: an internal status reader whose `api` record reuses the name bound to provider clients in other files, expecting no cross-file provider attribution.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/internal/status.ts",
+        "anchor": "internal-status-reader"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "anthropic",
+          "identifier": "messages.create",
+          "confidence": "none"
+        },
+        {
+          "outcome": "no-observation",
+          "provider": "openai",
+          "identifier": "responses.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The internal status reader wraps the plain internal fetch helper in an `api` record whose name is deliberately reused from the review module's injected provider parameter and the drafting module's unwrapped client binding; nothing in this file constructs or calls a provider client, so the reviewed expectation is that neither provider call site leaks onto the reused name across files. The workspace compiles only and the status path is deployment-internal.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "composed-relay-legacy-announcement",
+      "purpose": "A deliberate composed-deployment negative: an ordinary function retained from a pre-class refactor, invoked with a rebound `this` whose `client` field is a display label rather than the class-held provider client.",
+      "source": {
+        "file": "scenarios/composed/relay-deployment/src/legacy/announcement.ts",
+        "anchor": "legacy-announcement-scope"
+      },
+      "expectations": [
+        {
+          "outcome": "no-observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "confidence": "none"
+        }
+      ],
+      "rationale": "The legacy announcement function is an ordinary function invoked only through .call with a plain record whose `client` field is a display label string, so the `this.client` access can never reach the provider client held by the real sponsor-portal class; the reviewed expectation pins that no class-field name reuse or cross-class leakage attributes the billing-portal call site to this file. The workspace compiles only and is never invoked.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
