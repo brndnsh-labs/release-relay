@@ -53,7 +53,7 @@ There is no silent fallback from a failed live call to mock success. The UI and 
 
 The intended domain ports are narrow and operation-oriented:
 
-- `GitHubReader` reads repository identity, comparison ranges, pull requests, issues, contributors, and releases.
+- `GitHubReader` reads repository identity, comparison ranges, pull requests, issues, range-commit contributors, and releases (contributors are derived from the comparison commits[] authors, not via repos.listContributors).
 - `GitHubPublisher` previews and publishes one approved release using an idempotency key.
 - `ReleaseDrafter` produces a validated structured draft from bounded candidate material.
 - `DraftReviewer` returns cited review findings or an alternate structured draft.
