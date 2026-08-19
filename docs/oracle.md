@@ -57,6 +57,10 @@ Line numbers are useful output but fragile authoring keys. Each scenario therefo
 
 The comparison report records the resolved line range. A source edit that moves a call should update the computed location without requiring a hand-edited numeric line, while a deleted or duplicated anchor fails validation.
 
+### Revision pinning
+
+The manifest `revision` must be a full 40-character SHA that exists locally as a commit. The validator checks anchors against the working tree by default. The revision-aware mode (`coverage-oracle validate <manifest> --check-revision`) additionally proves that the declared revision exists locally, that `HEAD` is checked out at that revision, and that every scenario file and anchor exists exactly once in the Git tree at that revision — without fetching remote history. Operational canary scans target the pinned revision, not mutable `main`, and must be run from a checkout of that exact commit.
+
 ## Confidence bands
 
 The oracle describes semantic bands rather than exact floating-point values unless a scenario specifically tests a threshold:
@@ -122,16 +126,16 @@ The normalized scan report is the versioned interchange between Breakscope and t
 ### CLI
 
 ```sh
-coverage-oracle validate <manifest.json>
+coverage-oracle validate <manifest.json> [--check-revision]
 coverage-oracle validate-report <report.json>
 coverage-oracle compare <manifest.json> <report.json> [--json]
 ```
 
-`compare` exits `0` only when there are no `missing`, `mismatched`, or `unexpected` findings; `unresolved` (uncertain) never forces failure. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
+`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file or anchor is missing or duplicated in that Git tree; it performs no network fetch. `compare` exits `0` only when there are no `missing`, `mismatched`, or `unexpected` findings; `unresolved` (uncertain) never forces failure. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
 
 ### Runbook
 
-A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle compare` against the pinned manifest and the normalized report. Operational scans pin both repository revisions in their output. CI must not depend on a mutable default branch from another repository. The committed example report is synthetic and must never be generated from current detector output.
+A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate --check-revision` and `coverage-oracle compare` against the pinned manifest and the normalized report. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report is synthetic and must never be generated from current detector output.
 
 ## Reports
 

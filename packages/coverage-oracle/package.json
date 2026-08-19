@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/schema.test.js dist/report.test.js dist/compare.test.js"
+    "test": "pnpm build && node --test dist/schema.test.js dist/report.test.js dist/compare.test.js dist/revision.test.js"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
