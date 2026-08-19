@@ -249,6 +249,25 @@ test("reusing a completed operation returns duplicate without a second effect", 
   );
 });
 
+test("reusing a completed operation id with a different provider or operation is refused as conflict", async () => {
+  const runtime = createMockRuntime({ seed: "conflict-provider" });
+  const operationId = "shared-op";
+  const first = await runtime.reader.getRepository({ operationId, repository });
+  assert.equal(first.status, "completed");
+  const conflict = await runtime.billing.createCheckout({
+    operationId,
+    tierId: tier.id
+  });
+  assert.deepEqual(conflict, {
+    status: "refused",
+    operationId,
+    errorClass: "conflict"
+  });
+  const ledgerEntry = runtime.ledger.entries().at(-1);
+  assert.equal(ledgerEntry?.status, "refused");
+  assert.equal(ledgerEntry?.errorClass, "conflict");
+});
+
 test("mock mode does not touch fetch, DNS, or sockets", async () => {
   let fetchCalls = 0;
   let dnsCalls = 0;

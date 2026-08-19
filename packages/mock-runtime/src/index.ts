@@ -147,7 +147,7 @@ class MockEngine {
         previous.fingerprint !== input.fingerprint
       ) {
         const result: OperationResult<T> = {
-          status: "failed",
+          status: "refused",
           operationId: input.operationId,
           errorClass: "conflict"
         };
