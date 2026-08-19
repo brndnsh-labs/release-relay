@@ -169,7 +169,8 @@ test("the runtime composes the offline release workflow", async () => {
       eventId: runtime.nextOperationId("webhook"),
       eventCreatedAt: "2027-01-01T00:00:00.000Z",
       customerId: "customer-1",
-      membershipState: "active"
+      membershipState: "active",
+      payloadHash: "hash-1"
     })
   );
   assert.equal(membership.state, "active");
@@ -273,6 +274,67 @@ test("mock mode does not touch fetch, DNS, or sockets", async () => {
   assert.equal(fetchCalls, 0);
   assert.equal(dnsCalls, 0);
   assert.equal(socketCalls, 0);
+});
+
+test("the webhook projector treats a redelivered event id as idempotent", async () => {
+  const runtime = createMockRuntime({ seed: "webhook-duplicate" });
+  const event = {
+    eventId: "evt_1",
+    eventCreatedAt: "2027-01-01T00:00:00.000Z",
+    customerId: "customer-1",
+    membershipState: "active" as const,
+    payloadHash: "hash-1"
+  };
+  const first = await runtime.webhookProjector.project(event);
+  const second = await runtime.webhookProjector.project(event);
+  assert.equal(first.status, "completed");
+  assert.equal(second.status, "duplicate");
+  assert.deepEqual(value(first), value(second));
+});
+
+test("the webhook projector refuses a redelivered event id with a different payload hash", async () => {
+  const runtime = createMockRuntime({ seed: "webhook-conflict" });
+  await runtime.webhookProjector.project({
+    eventId: "evt_1",
+    eventCreatedAt: "2027-01-01T00:00:00.000Z",
+    customerId: "customer-1",
+    membershipState: "active",
+    payloadHash: "hash-1"
+  });
+  const result = await runtime.webhookProjector.project({
+    eventId: "evt_1",
+    eventCreatedAt: "2027-01-01T00:00:00.000Z",
+    customerId: "customer-1",
+    membershipState: "canceled",
+    payloadHash: "hash-2"
+  });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "evt_1",
+    errorClass: "conflict"
+  });
+});
+
+test("the webhook projector never regresses a newer projection with a stale out-of-order event", async () => {
+  const runtime = createMockRuntime({ seed: "webhook-out-of-order" });
+  await runtime.webhookProjector.project({
+    eventId: "evt_2",
+    eventCreatedAt: "2027-01-02T00:00:00.000Z",
+    customerId: "customer-1",
+    membershipState: "past_due",
+    payloadHash: "hash-2"
+  });
+  const result = value(
+    await runtime.webhookProjector.project({
+      eventId: "evt_1",
+      eventCreatedAt: "2027-01-01T00:00:00.000Z",
+      customerId: "customer-1",
+      membershipState: "active",
+      payloadHash: "hash-1"
+    })
+  );
+  assert.equal(result.state, "past_due");
+  assert.equal(result.sourceEventId, "evt_2");
 });
 
 async function createDraft(

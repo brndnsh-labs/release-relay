@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "pnpm --filter @release-relay/core build && tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/billing.test.js"
+    "test": "pnpm build && node --test dist/billing.test.js dist/webhook.test.js"
   },
   "dependencies": {
     "stripe": "^22.5.0",

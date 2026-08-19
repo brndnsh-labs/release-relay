@@ -63,6 +63,7 @@ function event(overrides: Partial<VerifiedWebhookEvent> = {}): VerifiedWebhookEv
     eventCreatedAt: "2027-01-01T00:00:00.000Z",
     customerId: "cus_1",
     membershipState: "active",
+    payloadHash: "hash_1",
     ...overrides
   };
 }
