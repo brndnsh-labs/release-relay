@@ -61,22 +61,47 @@ test("the runtime composes the offline release workflow", async () => {
       candidates
     })
   );
+  assert.equal(draft.kind, "validated-draft");
+  if (draft.kind !== "validated-draft") {
+    throw new Error("expected a validated draft");
+  }
+  assert.equal(draft.draft.provenance.timeSource, "operation-clock");
+  assert.deepEqual(
+    draft.draft.body.changeGroups.flatMap((group) =>
+      group.items.map((item) => item.sourceIdentities)
+    ),
+    candidates
+      .filter((candidate) => candidate.included)
+      .map((candidate) => [candidate.sourceIdentity])
+  );
   workspace = workspaceValue(
     addRevision(workspace, {
       id: "draft-1",
       origin: "generated",
-      provider: draft.provenance.provider,
-      content: draft.content
+      provider: draft.draft.provenance.provider,
+      model: draft.draft.provenance.model,
+      configurationId: draft.draft.provenance.configurationId,
+      generatedAt: draft.draft.provenance.generatedAt,
+      timeSource: draft.draft.provenance.timeSource,
+      body: draft.draft.body
     })
   );
   workspace = workspaceValue(transition(workspace, "review"));
   const review = value(
     await runtime.reviewer.review({
       operationId: runtime.nextOperationId("review"),
-      draft
+      draft: draft.draft
     })
   );
   assert.equal(review.kind, "review");
+  if (review.kind === "review") {
+    assert.deepEqual(
+      review.review.citedSourceIdentities,
+      draft.draft.body.changeGroups.flatMap((group) =>
+        group.items.flatMap((item) => item.sourceIdentities)
+      )
+    );
+  }
   workspace = workspaceValue(transition(workspace, "approved"));
   const authorization = value(
     await runtime.publisher.getAuthorization({
@@ -90,8 +115,8 @@ test("the runtime composes the offline release workflow", async () => {
     repository,
     authorizationRevision: authorization.revision,
     tag: "v0.2.0",
-    title: draft.content.title,
-    body: draft.content.summary
+    title: draft.draft.body.title,
+    body: draft.draft.body.summary
   });
   const confirmation = value(
     runtime.publisher.confirmRelease({
@@ -250,11 +275,18 @@ async function createDraft(
   return runtime.reviewer.review({
     operationId: "anthropic-1",
     draft: {
-      content: { title: "Draft", summary: "Summary" },
+      body: {
+        title: "Draft",
+        summary: "Summary",
+        changeGroups: [],
+        acknowledgements: []
+      },
       provenance: {
         provider: "anthropic",
-        sourceIdentities: [],
-        validation: "validated"
+        model: "draft-model-1",
+        configurationId: "config-1",
+        generatedAt: "2026-02-03T04:05:06.000Z",
+        timeSource: "operation-clock"
       }
     }
   });

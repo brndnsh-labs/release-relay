@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { assembleCandidates } from "@release-relay/github-integration";
-import { releasePreviewHash } from "@release-relay/core";
+import {
+  citedDraftSourceIdentities,
+  releasePreviewHash,
+  validateReleaseDraft
+} from "@release-relay/core";
 import type {
   AiProvider,
   CandidateItem,
@@ -8,6 +12,7 @@ import type {
   ComparisonResult,
   ConfirmedReleasePublication,
   ContributorSummary,
+  DraftGeneration,
   DraftRequest,
   DraftReviewOutput,
   DraftReviewRequest,
@@ -36,8 +41,8 @@ import type {
   SafeErrorClass,
   SponsorBilling,
   SponsorTier,
-  StripeWebhookProjector,
   StructuredReleaseDraft,
+  StripeWebhookProjector,
   VerifiedWebhookEvent,
   CheckoutSession
 } from "@release-relay/core";
@@ -284,22 +289,62 @@ function comparisonValue(
 
 function draftValue(
   provider: AiProvider,
-  request: DraftRequest
+  request: DraftRequest,
+  seed: string,
+  clock: DeterministicClock
 ): StructuredReleaseDraft {
-  const sourceIdentities = request.candidates
+  const included = request.candidates
     .filter((candidate) => candidate.included)
-    .sort((left, right) => left.order - right.order)
-    .map((candidate) => candidate.sourceIdentity);
+    .sort((left, right) => left.order - right.order);
   return {
-    content: {
-      title: `Release with ${sourceIdentities.length} changes`,
+    body: {
+      title:
+        included.length === 0
+          ? "Release"
+          : `Release with ${included.length} change${included.length === 1 ? "" : "s"}`,
       summary:
-        sourceIdentities.length === 0
+        included.length === 0
           ? "No included changes."
-          : sourceIdentities.join(", ")
+          : `Includes ${included.length} merged change${included.length === 1 ? "" : "s"}.`,
+      changeGroups:
+        included.length === 0
+          ? []
+          : [
+              {
+                kind: "changed" as const,
+                heading: "Changed",
+                items: included.map((candidate) => ({
+                  summary: candidate.title,
+                  sourceIdentities: [candidate.sourceIdentity]
+                }))
+              }
+            ],
+      acknowledgements: []
     },
-    provenance: { provider, sourceIdentities, validation: "validated" }
+    provenance: {
+      provider,
+      model: `mock-${provider}-draft`,
+      configurationId: stableId(seed, "draft-configuration", provider),
+      generatedAt: clock.next(),
+      timeSource: "operation-clock"
+    }
   };
+}
+
+function draftGeneration(
+  provider: AiProvider,
+  request: DraftRequest,
+  seed: string,
+  clock: DeterministicClock
+): DraftGeneration {
+  const outcome = validateReleaseDraft(
+    request.candidates,
+    draftValue(provider, request, seed, clock)
+  );
+  if (outcome.ok) {
+    return { kind: "validated-draft", draft: outcome.draft };
+  }
+  return { kind: outcome.reason, findings: outcome.findings };
 }
 
 function releasePreviewFields(
@@ -519,14 +564,19 @@ function createPublisher(
   };
 }
 
-function createDrafter(provider: AiProvider, engine: MockEngine): ReleaseDrafter {
+function createDrafter(
+  provider: AiProvider,
+  engine: MockEngine,
+  seed: string,
+  clock: DeterministicClock
+): ReleaseDrafter {
   return {
     draft: async (request) =>
       engine.execute({
         provider,
         operation: "draft.create",
         operationId: request.operationId,
-        createValue: () => draftValue(provider, request)
+        createValue: () => draftGeneration(provider, request, seed, clock)
       })
   };
 }
@@ -544,8 +594,8 @@ function createReviewer(provider: AiProvider, engine: MockEngine) {
           kind: "review" as const,
           review: {
             provider,
-            validation: request.draft.provenance.validation,
-            citedSourceIdentities: request.draft.provenance.sourceIdentities,
+            validation: "validated" as const,
+            citedSourceIdentities: citedDraftSourceIdentities(request.draft),
             findings: []
           }
         })
@@ -617,7 +667,7 @@ export function createMockRuntime(options: MockRuntimeOptions = {}): MockRuntime
     ledger,
     reader,
     publisher: createPublisher(seed, engine, clock),
-    drafter: createDrafter(options.draftProvider ?? "openai", engine),
+    drafter: createDrafter(options.draftProvider ?? "openai", engine, seed, clock),
     reviewer: createReviewer(options.reviewProvider ?? "anthropic", engine),
     billing: createBilling(engine),
     webhookProjector: createWebhookProjector(engine),
