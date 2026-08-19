@@ -1,0 +1,36 @@
+{
+  "reportVersion": 1,
+  "manifestVersion": 1,
+  "releaseRelayRevision": "0123456789abcdef0123456789abcdef01234567",
+  "breakscopeRevision": "fedcba9876543210fedcba9876543210fedcba98",
+  "ruleset": "breakscope-ruleset@2026-08-19",
+  "files": [
+    { "file": "src/index.ts", "disposition": "scanned" },
+    { "file": "packages/github-integration/src/publish.ts", "disposition": "scanned" },
+    {
+      "file": "scenarios/negative-controls/path-dispositions/src/generated/provider-snapshot.ts",
+      "disposition": "excluded",
+      "reason": "generated source path"
+    }
+  ],
+  "observations": [
+    {
+      "file": "src/index.ts",
+      "anchor": "repositoryPhase",
+      "line": 5,
+      "provider": "github",
+      "identifier": "repos.list",
+      "evidenceKind": "sdk-call",
+      "confidence": "supporting"
+    },
+    {
+      "file": "packages/github-integration/src/publish.ts",
+      "anchor": "write-adapter-client",
+      "line": 624,
+      "provider": "github",
+      "identifier": "repos.createRelease",
+      "evidenceKind": "sdk-call",
+      "confidence": "alertable"
+    }
+  ]
+}

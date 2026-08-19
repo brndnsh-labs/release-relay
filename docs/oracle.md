@@ -85,9 +85,57 @@ The Release Relay repo must not fetch provider changelogs or duplicate Breakscop
 
 An intentional source and oracle change may ship in the same PR, but the PR narrative must call out the oracle delta separately. Automatically capturing current detector output may produce a diagnostic file, never the committed expectation.
 
+## Normalized scan reports
+
+The normalized scan report is the versioned interchange between Breakscope and the coverage oracle. It is implemented in `packages/coverage-oracle` (validator + comparator + CLI) with a synthetic validating example at `scenarios/report-v1.example.json`. The example is hand-authored and never derived from detector output.
+
+```json
+{
+  "reportVersion": 1,
+  "manifestVersion": 1,
+  "releaseRelayRevision": "full git commit SHA",
+  "breakscopeRevision": "full git commit SHA",
+  "ruleset": "breakscope-ruleset@YYYY-MM-DD",
+  "files": [
+    { "file": "src/index.ts", "disposition": "scanned" },
+    { "file": "scenarios/negative-controls/path-dispositions/src/generated/provider-snapshot.ts", "disposition": "excluded", "reason": "generated source path" }
+  ],
+  "observations": [
+    {
+      "file": "packages/github-integration/src/publish.ts",
+      "anchor": "write-adapter-client",
+      "line": 624,
+      "provider": "github",
+      "identifier": "repos.createRelease",
+      "evidenceKind": "sdk-call",
+      "confidence": "alertable"
+    }
+  ]
+}
+```
+
+- `reportVersion` and `manifestVersion` are both `1`.
+- `releaseRelayRevision` and `breakscopeRevision` are full 40-character SHAs; the comparator requires `releaseRelayRevision` to equal the manifest `revision` (a mismatch fails comparison, because the oracle and the scan must pin the same commit).
+- `ruleset` is the Breakscope ruleset identifier; `files` carries per-file dispositions (`scanned` or `excluded` + `reason`); `observations` are keyed by `file` + `anchor` + `provider` + `identifier`, with their resolved line, evidence kind, and confidence band.
+- `anchor` carries the oracle's stable location identity. The report records the line the normalizer resolved for the anchor; the comparator independently re-resolves the anchor against the pinned revision and compares the two. A location mismatch surfaces when the reported line does not match the locally resolved anchor line.
+
+### CLI
+
+```sh
+coverage-oracle validate <manifest.json>
+coverage-oracle validate-report <report.json>
+coverage-oracle compare <manifest.json> <report.json> [--json]
+```
+
+`compare` exits `0` only when there are no `missing`, `mismatched`, or `unexpected` findings; `unresolved` (uncertain) never forces failure. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
+
+### Runbook
+
+A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle compare` against the pinned manifest and the normalized report. Operational scans pin both repository revisions in their output. CI must not depend on a mutable default branch from another repository. The committed example report is synthetic and must never be generated from current detector output.
+
 ## Reports
 
-The comparator should report:
+The comparator reports:
 
 - expected and observed totals by provider and outcome;
 - missing, unexpected, and mismatched observations;
