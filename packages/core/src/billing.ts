@@ -28,7 +28,7 @@ export function createMoney(
     typeof currency === "string" ? currency.toLowerCase() : currency;
   if (
     typeof normalizedCurrency !== "string" ||
-    !supportedCurrencies.includes(normalizedCurrency as Currency)
+    !(supportedCurrencies as readonly string[]).includes(normalizedCurrency as string)
   ) {
     return { ok: false, reason: "unsupported-currency" };
   }

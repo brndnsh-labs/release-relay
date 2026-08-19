@@ -241,7 +241,7 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
       }
       if (
         typeof raw.provider !== "string" ||
-        !providers.includes(raw.provider as Provider)
+        !(providers as readonly string[]).includes(raw.provider as string)
       ) {
         errors.push(`${where}.provider must be one of ${providers.join(", ")}`);
       }

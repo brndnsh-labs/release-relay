@@ -224,7 +224,10 @@ export function validateManifest(input: unknown): ValidationResult {
         rejectUnknownKeys(expectationWhere, rawExpectation, EXPECTATION_KEYS, errors);
 
         const outcome = rawExpectation.outcome;
-        if (typeof outcome !== "string" || !outcomes.includes(outcome as Outcome)) {
+        if (
+          typeof outcome !== "string" ||
+          !(outcomes as readonly string[]).includes(outcome as string)
+        ) {
           errors.push(
             `${expectationWhere}.outcome must be one of ${outcomes.join(", ")}`
           );
@@ -235,7 +238,9 @@ export function validateManifest(input: unknown): ValidationResult {
         if (rawExpectation.provider !== undefined) {
           if (
             typeof rawExpectation.provider !== "string" ||
-            !providers.includes(rawExpectation.provider as Provider)
+            !(providers as readonly string[]).includes(
+              rawExpectation.provider as string
+            )
           ) {
             errors.push(
               `${expectationWhere}.provider must be one of ${providers.join(", ")}`
@@ -261,14 +266,16 @@ export function validateManifest(input: unknown): ValidationResult {
         if (rawExpectation.confidence !== undefined) {
           if (
             typeof rawExpectation.confidence !== "string" ||
-            !confidenceBands.includes(rawExpectation.confidence as ConfidenceBand)
+            !(confidenceBands as readonly string[]).includes(
+              rawExpectation.confidence as string
+            )
           ) {
             errors.push(
               `${expectationWhere}.confidence must be one of ${confidenceBands.join(", ")}`
             );
           } else if (
-            !shape.allowedConfidence.includes(
-              rawExpectation.confidence as ConfidenceBand
+            !(shape.allowedConfidence as readonly string[]).includes(
+              rawExpectation.confidence as string
             )
           ) {
             errors.push(

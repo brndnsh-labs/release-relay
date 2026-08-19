@@ -173,7 +173,7 @@ function parseChangeGroup(
     findings.push({ code: "invalid-change-group" });
     return undefined;
   }
-  if (!changeGroupKinds.includes(value.kind as ChangeGroupKind)) {
+  if (!(changeGroupKinds as readonly string[]).includes(value.kind as string)) {
     findings.push({ code: "invalid-change-group-kind" });
     return undefined;
   }
