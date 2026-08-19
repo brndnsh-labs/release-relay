@@ -186,7 +186,7 @@ function validateObservationCommon(
 
   if (
     typeof observation.provider !== "string" ||
-    !providers.includes(observation.provider as Provider)
+    !(providers as readonly string[]).includes(observation.provider as string)
   ) {
     errors.push(`${where}.provider must be one of ${providers.join(", ")}`);
   }
@@ -196,7 +196,7 @@ function validateObservationCommon(
 
   if (
     typeof observation.confidence !== "string" ||
-    !confidenceBands.includes(observation.confidence as ConfidenceBand)
+    !(confidenceBands as readonly string[]).includes(observation.confidence as string)
   ) {
     errors.push(`${where}.confidence must be one of ${confidenceBands.join(", ")}`);
   }
