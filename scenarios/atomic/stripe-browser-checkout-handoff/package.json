@@ -1,0 +1,16 @@
+{
+  "name": "@release-relay/scenario-stripe-browser-checkout-handoff",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@stripe/stripe-js": "^9.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}

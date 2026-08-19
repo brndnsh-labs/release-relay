@@ -325,6 +325,86 @@
       "rationale": "This call is genuine, correctly attributed OpenAI SDK evidence for a real embeddings-search maintainer utility, but it is deliberately unrelated to the structured, source-grounded release draft that is Release Relay's documented OpenAI product operation, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for the product-critical call site.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "stripe-atomic-checkout-session",
+      "purpose": "Isolate a maintainer helper that creates a sponsor Checkout Session through a factory-constructed, API-version-pinned client, rather than through Release Relay's injected billing adapter.",
+      "source": {
+        "file": "scenarios/atomic/stripe-checkout-session/src/index.ts",
+        "anchor": "checkout-session-create-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "checkout.sessions.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises a factory-construction client shape distinct from packages/stripe-integration/src/billing.ts's injected adapter, and deliberately pins an explicit apiVersion where the product adapter pins only the host, so both dimensions have reviewed coverage; the code never runs and the secret key is an explicit parameter, never loaded from the environment.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "stripe-atomic-customer-portal",
+      "purpose": "Isolate a maintainer helper that creates a sponsor billing-portal session through a dependency-injected client field, varying the client-construction shape from the other atomic Stripe scenarios and the product adapter.",
+      "source": {
+        "file": "scenarios/atomic/stripe-customer-portal/src/index.ts",
+        "anchor": "customer-portal-create-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "A small, reviewed, compile-only workspace exercises the dependency-injection client-construction shape; the code never runs and the workspace is never given a real client.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "stripe-atomic-browser-checkout-handoff",
+      "purpose": "Isolate a minimal browser hand-off to a server-prepared, hosted sponsor Checkout Session using the official browser Stripe.js SDK, handling only publishable configuration and never card data.",
+      "source": {
+        "file": "scenarios/atomic/stripe-browser-checkout-handoff/src/index.ts",
+        "anchor": "browser-checkout-handoff-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "loadStripe",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The browser Stripe.js load call confirms the client environment is ready before handing off to the hosted Checkout URL the server already prepared; the redirect itself is an injected callback so this workspace has no DOM library dependency, and the publishable key is an explicit parameter and an unmistakably fake structural value, never a real credential. The code never runs.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "stripe-atomic-unrelated-negative",
+      "purpose": "A deliberate same-provider negative: real Stripe SDK usage for an operation outside Release Relay's documented product workflow, so it is not conflated with the sponsor-billing call sites.",
+      "source": {
+        "file": "scenarios/atomic/stripe-unrelated-negative/src/index.ts",
+        "anchor": "unrelated-negative-balance-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "balance.retrieve",
+          "evidenceKind": "sdk-call",
+          "confidence": "supporting"
+        }
+      ],
+      "rationale": "This call is genuine, correctly attributed Stripe SDK evidence for a real account-balance maintainer utility, but it is deliberately unrelated to sponsor-tier products and prices, Checkout, the billing portal, and signed webhooks, which are Release Relay's documented Stripe product operations, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for product-critical call sites.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
