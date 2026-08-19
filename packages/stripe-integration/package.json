@@ -1,0 +1,22 @@
+{
+  "name": "@release-relay/stripe-integration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @release-relay/core build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test dist/billing.test.js"
+  },
+  "dependencies": {
+    "stripe": "^22.5.0",
+    "@release-relay/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}

@@ -150,6 +150,61 @@
       "rationale": "The explicit live-AI composition root uses the official Messages SDK method with structured json_schema output; tests inject a fake and never execute the call.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
+    },
+    {
+      "id": "stripe-sponsor-billing",
+      "purpose": "Synchronize sponsor-tier products and prices and create hosted Checkout and billing-portal sessions through the isolated Stripe adapter.",
+      "source": {
+        "file": "packages/stripe-integration/src/billing.ts",
+        "anchor": "billing-adapter-client"
+      },
+      "expectations": [
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "products.list",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "products.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "prices.list",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "prices.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "checkout.sessions.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        },
+        {
+          "outcome": "observation",
+          "provider": "stripe",
+          "identifier": "billingPortal.sessions.create",
+          "evidenceKind": "sdk-call",
+          "confidence": "alertable"
+        }
+      ],
+      "rationale": "The explicit live-billing composition root uses official product, price, Checkout, and billing-portal SDK methods with per-resource idempotency keys and reuses matching resources instead of mutating an active price; tests inject a fake and never execute the calls.",
+      "reviewedBy": "maintainer",
+      "reviewedAt": "2026-08-19"
     }
   ]
 }
