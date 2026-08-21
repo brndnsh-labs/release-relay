@@ -87,18 +87,38 @@ export function createStripeWebhookVerifier(
       if (!isPermittedEventType(event.type)) {
         return { kind: "ignored", eventId: event.id, eventType: event.type };
       }
-      const subscription = event.data.object as Stripe.Subscription;
-      const customerId =
-        typeof subscription.customer === "string"
-          ? subscription.customer
-          : subscription.customer.id;
+      const rawObject = event.data.object as unknown;
+      if (typeof rawObject !== "object" || rawObject === null) {
+        return { kind: "invalid-signature" };
+      }
+      const rawRecord = rawObject as Record<string, unknown>;
+      const customerRaw = rawRecord.customer;
+      let customerId: string | undefined;
+      if (typeof customerRaw === "string" && customerRaw.trim() !== "") {
+        customerId = customerRaw;
+      } else if (
+        customerRaw !== null &&
+        typeof customerRaw === "object" &&
+        typeof (customerRaw as { id?: unknown }).id === "string" &&
+        (customerRaw as { id: string }).id.trim() !== ""
+      ) {
+        customerId = (customerRaw as { id: string }).id;
+      } else {
+        return { kind: "invalid-signature" };
+      }
+      const statusRaw = rawRecord.status;
+      if (typeof statusRaw !== "string" || statusRaw.trim() === "") {
+        return { kind: "invalid-signature" };
+      }
       return {
         kind: "verified",
         event: {
           eventId: event.id,
           eventCreatedAt: new Date(event.created * 1000).toISOString(),
           customerId,
-          membershipState: mapSubscriptionStatus(subscription.status),
+          membershipState: mapSubscriptionStatus(
+            statusRaw as Stripe.Subscription["status"]
+          ),
           payloadHash: createHash("sha256").update(rawBody).digest("hex")
         }
       };
