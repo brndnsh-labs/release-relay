@@ -1,14 +1,14 @@
 ---
 name: done
-description: Ship a release-relay story — commit the reviewed work, push, open a PR that Closes #<n>, and (for a safe story) land it through the background poll-then-merge guard; a judgment-call story's PR is left for Brandon's manual merge. Done = the issue closes on merge. Plan-first. Usage `/done #<n>`. Use after /review (+ /patch) pass clean.
+description: Ship a release-relay story — commit the reviewed work, push, open a PR that Closes #<n>, and (for a safe story) land it through the foreground poll-then-merge guard; a judgment-call story's PR is left for Brandon's manual merge. Done = the issue closes on merge. Plan-first. Usage `/done #<n>`. Use after /review (+ /patch) pass clean.
 ---
-<!-- cycle:rendered template=skills/done.md.tmpl hash=25c05c2b955b — managed by the-cycle; edit the template, not this file -->
+<!-- cycle:rendered template=skills/done.md.tmpl hash=af4ce3a76fdc — managed by the-cycle; edit the template, not this file -->
 
 # /done #<n> — ship a story
 
 Goal: commit the reviewed work, push, open a PR that closes the issue, and land it —
 
-auto-merging a safe story through the CI-gated background guard, or leaving a
+auto-merging a safe story through the CI-gated foreground guard, or leaving a
 judgment-call PR for Brandon.
 
 **Shared rules in `.claude/skills/DOCTRINE.md` — read it if not already in context.** This skill
@@ -58,9 +58,9 @@ just the ordering.
 11. **Post a one-line issue comment** linking the PR: `gh issue comment "<n>" --body "<text>"`
 12. **Land it — the auto-merge decision (§5 + §6):**
     - **Safe story** — none of §5's always-brake classes (Adding or running a live OpenAI, Anthropic, GitHub, or Stripe call, because it sends data or changes remote state, Adding, exposing, rotating, or changing the handling of credentials, tokens, cookies, webhook secrets, or private keys, Creating or changing a remote GitHub release, Stripe resource, charge, subscription, webhook endpoint, or other external object, Weakening explicit confirmation, current-authorization rechecks, signature validation, idempotency, request bounds, fixed provider hosts, or safe logging, Changing authentication, authorization, payment-state, data-retention, persistent schema, migration, or destructive-data semantics, Changing reviewed oracle truth merely to match current Breakscope output, or generating committed expectations from detector output, Deploying the application or creating hosted infrastructure; no environment is authorized by this repository) **and** green CI →
-      run the **poll-then-merge guard in the background** (§6):
+      run the **poll-then-merge guard as one foreground, resumable command** (§6):
       ```bash
-      (until gh pr checks "<pr>" >/dev/null 2>&1; do sleep 30; done; gh pr checks "<pr>" --watch --interval 30 --fail-fast && gh pr merge "<pr>" --squash --delete-branch) &
+      until gh pr checks "<pr>" >/dev/null 2>&1; do sleep 30; done; gh pr checks "<pr>" --watch --interval 30 --fail-fast && gh pr merge "<pr>" --squash --delete-branch
       ```
       After it lands, sync local main and prune the branch. The issue closure is the done signal.
     - **Judgment-call story** → **leave the PR open**, report "ready for your merge: <url>" + *why*
