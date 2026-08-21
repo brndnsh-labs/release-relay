@@ -2,7 +2,7 @@
 
 ## Current state
 
-Only a thin TypeScript bootstrap exists. The package layout below is a target contract for incremental issues, not an instruction to scaffold everything at once. A package should appear only when a story needs it.
+The deterministic product contracts, mock runtime, provider adapters, billing flows, coverage scenarios, and coverage-oracle comparator are implemented (see `docs/roadmap.md` and `CLAUDE.md`). The package layout below is the implemented topology; a new package still requires a story that needs it and an oracle update if it adds detectable API usage. The thin-bootstrap wording is retained in git history.
 
 ## Target topology
 
