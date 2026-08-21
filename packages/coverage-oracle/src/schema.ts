@@ -282,11 +282,6 @@ export function validateManifest(input: unknown): ValidationResult {
           } else {
             validatedProvider = rawExpectation.provider as Provider;
           }
-        } else if (
-          typeof rawExpectation.provider === "string" &&
-          (providers as readonly string[]).includes(rawExpectation.provider as string)
-        ) {
-          validatedProvider = rawExpectation.provider as Provider;
         }
         // Capture identifier/evidenceKind/reason/confidence if present and valid for potential construction
         if (
@@ -357,8 +352,6 @@ export function validateManifest(input: unknown): ValidationResult {
         // Build validated expectation from captured locals (or raw if capture missed but validation passed)
         const exp: OracleExpectation = { outcome: validatedOutcome };
         if (validatedProvider !== undefined) exp.provider = validatedProvider;
-        else if (typeof rawExpectation.provider === "string")
-          exp.provider = rawExpectation.provider as Provider;
         if (validatedIdentifier !== undefined) exp.identifier = validatedIdentifier;
         else if (typeof rawExpectation.identifier === "string")
           exp.identifier = rawExpectation.identifier;
