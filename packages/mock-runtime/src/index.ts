@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { assembleCandidates } from "@release-relay/github-integration";
 import {
+  assembleCandidates,
   citedDraftSourceIdentities,
   projectMembership,
   releasePreviewHash,
