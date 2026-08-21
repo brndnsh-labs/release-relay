@@ -13,7 +13,7 @@ The current implementation includes:
 - versioned product, architecture, security, coverage, and oracle contracts;
 - strict TypeScript packages for the domain, mock runtime, and provider integrations;
 - atomic, composed, negative-control, and path-disposition scan scenarios;
-- an offline validator and comparator for pinned normalized Breakscope reports;
+- an offline validator and v1 comparator for pinned Breakscope reports (v2 normalization ships; v2 comparison is staged on #52 — see `docs/oracle.md` and `docs/canary-runbook.md`);
 - a repository-specific [the-cycle](https://github.com/brndnsh-labs/the-cycle) workflow;
 - M6 operational work that remains behind explicit Breakscope permission and production-health gates.
 
