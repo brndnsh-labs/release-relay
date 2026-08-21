@@ -1,4 +1,4 @@
-<!-- cycle:rendered template=DOCTRINE.md.tmpl hash=025c9fbf785d — managed by the-cycle; edit the template, not this file -->
+<!-- cycle:rendered template=DOCTRINE.md.tmpl hash=6e8e4eb004c9 — managed by the-cycle; edit the template, not this file -->
 # Pipeline doctrine (shared)
 
 Single source of truth for the rules the release-relay work-loop skills share. A skill that says
@@ -242,16 +242,19 @@ report "ready for your merge: <url>" + *why* it's gated.
 **This repo has no server-side enforcement**, so the **poll-then-merge guard IS the enforcement**.
 Never use a fire-and-forget auto-merge flag here — `--auto` merges when the repo's merge
 *requirements* are met, and with no branch protection there are none, so it fires immediately with
-nothing to wait on. Run the guard in the **background** (the poll takes minutes; a foreground
-`sleep` is harness-blocked):
+nothing to wait on. Run the guard as **one foreground, resumable command**. If the command tool
+yields while CI is pending, resume that same command/session; do not append `&`, launch a detached
+watcher, or treat the yielded call as completion:
 
 ```bash
-(until gh pr checks "<pr>" >/dev/null 2>&1; do sleep 30; done; gh pr checks "<pr>" --watch --interval 30 --fail-fast && gh pr merge "<pr>" --squash --delete-branch) &
+until gh pr checks "<pr>" >/dev/null 2>&1; do sleep 30; done; gh pr checks "<pr>" --watch --interval 30 --fail-fast && gh pr merge "<pr>" --squash --delete-branch
 ```
 
-The guard is a client-side *simulation* of branch protection, with a simulation's weaknesses: it
-dies with the session, costs polling quota, and the harness can refuse to run it. If this repo ever
-gains protection, set `backend_overrides.auto_merge` and delete the guard.
+The guard is a client-side *simulation* of branch protection, with a simulation's weaknesses: the
+calling session must stay alive, it costs polling quota, and the harness can refuse to run it. If
+the session cannot retain a foreground command, leave the PR open and report that delivery is not
+complete — never detach the guard and claim success. If this repo ever gains protection, set
+`backend_overrides.auto_merge` and delete the guard.
 
 Closing rides on the PR body's `Closes #<n>` keyword — GitHub fires it anywhere in the body
 regardless of surrounding prose (§8), so a multi-phase PR must never place that token next to an
@@ -267,7 +270,7 @@ unexplained red a hard stop.
 After a safe merge: **sync local main** (`git checkout main && git fetch origin && git reset --hard
 origin/main`) and prune the branch.
 
-**The harness's own auto-mode classifier can independently deny the background merge command**, even
+**The harness's own auto-mode classifier can independently deny the merge command**, even
 on a safe story with everything above satisfied. That's an environment-level permission gate, not a
 pipeline judgment call, and no skill text can route around it. If it fires: report the open,
 CI-pending PR and ask Brandon for a one-turn approval to re-run the merge (or to
@@ -295,7 +298,12 @@ A status label that doesn't exist in the repo makes `gh` **fail loudly** — tha
 behavior. Create the label rather than working around the error, and never invent a status value
 that isn't in the §1 table.
 
-**Unreachable → STOP.** `gh` unauthenticated or offline: say so and stop. Never guess tracker state.
+**Confirm unreachable, then STOP.** A first transport or OS-permission failure can be the harness
+sandbox rather than the tracker. When the error is compatible with a sandbox restriction and the
+harness exposes a policy-supported escalation or approval path, retry the **exact same read once**
+through that path — same target and arguments, with no weakened authentication or command. Stop if
+that retry fails, `gh` is unauthenticated, the API rejects the authenticated request, or no allowed
+escalation path exists. Never loop, guess tracker state, or substitute cached data.
 
 - Milestones use the form `M<n> — <epic>` and are completed in numeric order.
 - Each implementation issue names its dependencies explicitly. A dependency on a
