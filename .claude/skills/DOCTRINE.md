@@ -1,4 +1,4 @@
-<!-- cycle:rendered template=DOCTRINE.md.tmpl hash=18ee9e1af4ac — managed by the-cycle; edit the template, not this file -->
+<!-- cycle:rendered template=DOCTRINE.md.tmpl hash=e98e460229db — managed by the-cycle; edit the template, not this file -->
 # Pipeline doctrine (shared)
 
 Single source of truth for the rules the release-relay work-loop skills share. A skill that says
@@ -331,7 +331,8 @@ that isn't in the §1 table.
 
 - **Issue work → a feature branch + PR**, always. Never build on `main`; `/implement` branches
   (`git checkout -b <short-slug>`), reusing an epic branch if one exists.
-- **Minor tooling / skills / docs edits → straight to `main`**, no branch/PR.
+- **No minor-edit carve-out.** `main` is protected against *all* direct pushes — skills, scripts,
+  ops notes and docs each need their own branch + PR, even though most auto-merge immediately (§6).
 - **Branch off freshly-fetched `origin/main`, not local `main`.** A squash-merge PR is based
   against `origin/main` HEAD, not your local HEAD — if local `main` carries commits never pushed to
   origin, cutting a branch off it silently folds those unpushed commits into your feature's squash

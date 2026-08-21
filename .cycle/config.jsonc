@@ -76,7 +76,7 @@
     "Deploying the application or creating hosted infrastructure; no environment is authorized by this repository"
   ],
   "branch": {
-    "minor_edits_direct": true
+    "minor_edits_direct": false
   },
   "commit": {
     "coauthor": ""
