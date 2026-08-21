@@ -160,8 +160,8 @@ test("short or malformed revision SHAs are rejected", () => {
   );
 });
 
-test("non-v1 versions are rejected", () => {
-  expectInvalid({ ...base, version: 2 }, "version must be the integer 1");
+test("non-v1/v2 versions are rejected", () => {
+  expectInvalid({ ...base, version: 3 }, "version must be the integer 1 or 2");
 });
 
 test("anchors containing provider names are rejected", () => {
@@ -215,7 +215,7 @@ function runCli(
 }
 
 test("the example manifest passes through the CLI", () => {
-  const example = join(repoRoot, "scenarios/oracle-v1.example.json");
+  const example = join(repoRoot, "scenarios/oracle-v2.example.json");
   const result = runCli(["validate", example, "--source-root", repoRoot], repoRoot);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /valid:/);
@@ -232,4 +232,165 @@ test("an invalid manifest is rejected by the CLI", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+const v2LocatedExpectation = {
+  outcome: "observation",
+  id: "scenario-one.repos.list",
+  provider: "github",
+  identifier: "repos.list",
+  evidenceKind: "sdk-call",
+  confidence: "supporting",
+  locationAnchor: { file: "src/index.ts", anchor: "supportedProviders" }
+} satisfies OracleManifest["scenarios"][number]["expectations"][number];
+
+const v2Scenario = {
+  ...scenario,
+  expectations: [v2LocatedExpectation]
+};
+
+const v2Base: OracleManifest = {
+  version: 2,
+  revision: base.revision,
+  scenarios: [v2Scenario]
+};
+
+test("a valid version-2 manifest passes with located expectations", () => {
+  const result = validateManifest(v2Base);
+  assert.ok(result.ok, result.ok ? "" : result.errors.join("; "));
+  assert.equal(result.manifest.version, 2);
+  const located = result.manifest.scenarios[0]!.expectations[0]!;
+  assert.equal(located.id, "scenario-one.repos.list");
+  if (located.locationAnchor === undefined) assert.fail("locationAnchor missing");
+});
+
+test("version-2 located outcomes require id and locationAnchor", () => {
+  const { id: _id, ...noId } = v2LocatedExpectation;
+  expectInvalid(
+    { ...v2Base, scenarios: [{ ...v2Scenario, expectations: [noId] }] },
+    ".id is required for outcome observation in manifest version 2"
+  );
+  const { locationAnchor: _anchor, ...noAnchor } = v2LocatedExpectation;
+  expectInvalid(
+    { ...v2Base, scenarios: [{ ...v2Scenario, expectations: [noAnchor] }] },
+    ".locationAnchor is required for outcome observation in manifest version 2"
+  );
+});
+
+test("version-2 non-located outcomes reject id and locationAnchor", () => {
+  expectInvalid(
+    {
+      ...v2Base,
+      scenarios: [
+        {
+          ...v2Scenario,
+          expectations: [
+            {
+              outcome: "uncertain",
+              confidence: "none",
+              id: "scenario-one.uncertain"
+            }
+          ]
+        }
+      ]
+    },
+    ".id must not be present for outcome uncertain"
+  );
+});
+
+test("version-1 manifests reject expectation ids and location anchors", () => {
+  expectInvalid(
+    withScenario({
+      ...scenario,
+      expectations: [{ ...expectation, id: "legacy.id" }]
+    }),
+    ".id is only allowed in manifest version 2"
+  );
+  expectInvalid(
+    withScenario({
+      ...scenario,
+      expectations: [
+        {
+          ...expectation,
+          locationAnchor: { file: "src/index.ts", anchor: "repositoryPhase" }
+        }
+      ]
+    }),
+    ".locationAnchor is only allowed in manifest version 2"
+  );
+});
+
+test("version-2 expectation ids are unique across the manifest", () => {
+  expectInvalid(
+    {
+      ...v2Base,
+      scenarios: [
+        v2Scenario,
+        {
+          ...v2Scenario,
+          id: "scenario-two",
+          source: { file: "src/index.ts", anchor: "repositoryPhase" },
+          expectations: [{ ...v2LocatedExpectation, id: "scenario-one.repos.list" }]
+        }
+      ]
+    },
+    "is duplicated across expectations"
+  );
+});
+
+test("version-2 location anchors are hygienic and unique per file", () => {
+  expectInvalid(
+    {
+      ...v2Base,
+      scenarios: [
+        {
+          ...v2Scenario,
+          expectations: [
+            {
+              ...v2LocatedExpectation,
+              locationAnchor: { file: "src/index.ts", anchor: "github-call-site" }
+            }
+          ]
+        }
+      ]
+    },
+    "anchor must not contain the provider name github"
+  );
+  expectInvalid(
+    {
+      ...v2Base,
+      scenarios: [
+        {
+          ...v2Scenario,
+          expectations: [
+            {
+              ...v2LocatedExpectation,
+              locationAnchor: {
+                file: "src/index.ts",
+                anchor: "https://example.test/call"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "anchor must not contain an endpoint URL"
+  );
+  expectInvalid(
+    {
+      ...v2Base,
+      scenarios: [
+        {
+          ...v2Scenario,
+          expectations: [
+            {
+              ...v2LocatedExpectation,
+              locationAnchor: { file: "src/index.ts", anchor: "repositoryPhase" }
+            }
+          ]
+        }
+      ]
+    },
+    "is duplicated in src/index.ts"
+  );
 });

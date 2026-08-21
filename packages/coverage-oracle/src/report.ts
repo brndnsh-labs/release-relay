@@ -52,7 +52,7 @@ export interface ScanReportV1 {
 
 export interface ScanReportV2 {
   reportVersion: 2;
-  manifestVersion: 1;
+  manifestVersion: 1 | 2;
   releaseRelayRevision: string;
   breakscopeRevision: string;
   ruleset: string;
@@ -435,8 +435,13 @@ export function validateReport(input: unknown): ReportValidationResult {
   if (version !== 1 && version !== 2) {
     errors.push("report.reportVersion must be the integer 1 or 2");
   }
-  if (input.manifestVersion !== 1) {
-    errors.push("report.manifestVersion must be the integer 1");
+  if (version === 1 && input.manifestVersion !== 1) {
+    errors.push("report.manifestVersion must be the integer 1 for reportVersion 1");
+  }
+  if (version === 2 && input.manifestVersion !== 1 && input.manifestVersion !== 2) {
+    errors.push(
+      "report.manifestVersion must be the integer 1 or 2 for reportVersion 2"
+    );
   }
 
   let validatedReleaseRelayRevision: string | undefined;
@@ -490,7 +495,7 @@ export function validateReport(input: unknown): ReportValidationResult {
   }
   const report: ScanReportV2 = {
     reportVersion: 2,
-    manifestVersion: 1,
+    manifestVersion: input.manifestVersion === 2 ? 2 : 1,
     releaseRelayRevision: validatedReleaseRelayRevision!,
     breakscopeRevision: validatedBreakscopeRevision!,
     ruleset: validatedRuleset!,

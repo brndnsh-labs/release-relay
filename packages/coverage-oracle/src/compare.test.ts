@@ -593,7 +593,7 @@ test("the compare CLI rejects a source path that escapes through a symlink", asy
   }
 });
 
-test("the compare CLI rejects v2 reports until the v2 comparator ships", async () => {
+test("the compare CLI rejects a report whose version does not match the manifest", async () => {
   const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-cli-"));
   try {
     const manifestPath = join(dir, "manifest.json");
@@ -604,7 +604,375 @@ test("the compare CLI rejects v2 reports until the v2 comparator ships", async (
       dir
     );
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /does not yet support reportVersion 2/);
+    assert.match(result.stderr, /compares only against reportVersion 1/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+const V2_SOURCES: Record<string, string> = {
+  "move.ts": [
+    "// moved-scenario-anchor",
+    "export const callOne = 1;",
+    "export const callTwo = 2;"
+  ].join("\n"),
+  "dup.ts": [
+    "// dup-scenario-anchor",
+    "export const firstDup = 1;",
+    "// between",
+    "export const secondDup = 2;"
+  ].join("\n")
+};
+
+function v2Scenario(
+  id: string,
+  file: string,
+  anchor: string,
+  expectations: OracleManifest["scenarios"][number]["expectations"]
+): OracleManifest["scenarios"][number] {
+  return {
+    id,
+    purpose: `V2 fixture scenario ${id}.`,
+    source: { file, anchor },
+    expectations,
+    rationale: "Reviewed from source intent, never from detector output.",
+    reviewedBy: "maintainer",
+    reviewedAt: "2026-08-21"
+  };
+}
+
+function v2Located(
+  id: string,
+  file: string,
+  anchor: string,
+  identifier: string
+): OracleManifest["scenarios"][number]["expectations"][number] {
+  return {
+    outcome: "observation",
+    id,
+    provider: "github",
+    identifier,
+    evidenceKind: "sdk-call",
+    confidence: "alertable",
+    locationAnchor: { file, anchor }
+  };
+}
+
+async function runCompareV2(
+  manifestInput: unknown,
+  reportInput: unknown,
+  dir: string
+): Promise<ComparisonReport> {
+  const manifestResult = validateManifest(manifestInput);
+  assert.ok(
+    manifestResult.ok,
+    manifestResult.ok ? "" : manifestResult.errors.join("; ")
+  );
+  const reportResult = validateReport(reportInput);
+  assert.ok(reportResult.ok, reportResult.ok ? "" : reportResult.errors.join("; "));
+  const comparison = await compareReports(
+    manifestResult.manifest,
+    reportResult.report,
+    dir
+  );
+  assert.equal(comparison.ok, true, comparison.ok ? "" : comparison.errors.join("; "));
+  return comparison.report;
+}
+
+test("v2: moving one call changes only that expectation result", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-"));
+  try {
+    for (const [name, content] of Object.entries(V2_SOURCES)) {
+      if (name === "move.ts") await writeFile(join(dir, name), content);
+    }
+    const manifestInput: OracleManifest = {
+      version: 2,
+      revision: REVISION,
+      scenarios: [
+        v2Scenario("moved-scenario", "move.ts", "moved-scenario-anchor", [
+          v2Located(
+            "moved-scenario.repos.list",
+            "move.ts",
+            "export const callOne",
+            "repos.list"
+          ),
+          v2Located(
+            "moved-scenario.repos.createRelease",
+            "move.ts",
+            "export const callTwo",
+            "repos.createRelease"
+          )
+        ])
+      ]
+    };
+    const reportInput = {
+      reportVersion: 2 as const,
+      manifestVersion: 2 as const,
+      releaseRelayRevision: REVISION,
+      breakscopeRevision: BREAKSCOPE_REVISION,
+      ruleset: RULESET,
+      files: [{ file: "move.ts", disposition: "scanned" as const }],
+      observations: [
+        {
+          file: "move.ts",
+          lineStart: 2,
+          lineEnd: 2,
+          provider: "github" as const,
+          identifier: "repos.list",
+          evidenceKind: "sdk-call",
+          confidence: "alertable" as const
+        },
+        {
+          file: "move.ts",
+          lineStart: 99,
+          lineEnd: 101,
+          provider: "github" as const,
+          identifier: "repos.createRelease",
+          evidenceKind: "sdk-call",
+          confidence: "alertable" as const
+        }
+      ]
+    };
+    const report = await runCompareV2(manifestInput, reportInput, dir);
+    const results = report.scenarios[0]!.results;
+    assert.equal(results[0]!.expectationId, "moved-scenario.repos.list");
+    assert.equal(results[0]!.status, "matched");
+    assert.equal(results[1]!.expectationId, "moved-scenario.repos.createRelease");
+    assert.equal(results[1]!.status, "mismatched");
+    assert.deepEqual(results[1]!.dimensions, ["location"]);
+    assert.equal(report.totals.unexpectedObservations, 0);
+    assert.equal(report.ok, false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("v2: duplicate identifiers are separated by anchor coverage and consumed once", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-"));
+  try {
+    for (const [name, content] of Object.entries(V2_SOURCES)) {
+      if (name === "dup.ts") await writeFile(join(dir, name), content);
+    }
+    const manifestInput: OracleManifest = {
+      version: 2,
+      revision: REVISION,
+      scenarios: [
+        v2Scenario("dup-scenario", "dup.ts", "dup-scenario-anchor", [
+          v2Located(
+            "dup-scenario.first",
+            "dup.ts",
+            "export const firstDup",
+            "repos.list"
+          ),
+          v2Located(
+            "dup-scenario.second",
+            "dup.ts",
+            "export const secondDup",
+            "repos.list"
+          )
+        ])
+      ]
+    };
+    const observation = (lineStart: number) => ({
+      file: "dup.ts",
+      lineStart,
+      lineEnd: lineStart,
+      provider: "github" as const,
+      identifier: "repos.list",
+      evidenceKind: "sdk-call",
+      confidence: "alertable" as const
+    });
+    const goodReport = await runCompareV2(
+      manifestInput,
+      {
+        reportVersion: 2,
+        manifestVersion: 2,
+        releaseRelayRevision: REVISION,
+        breakscopeRevision: BREAKSCOPE_REVISION,
+        ruleset: RULESET,
+        files: [{ file: "dup.ts", disposition: "scanned" }],
+        observations: [observation(4), observation(2)]
+      },
+      dir
+    );
+    const results = goodReport.scenarios[0]!.results;
+    assert.match(results[0]!.detail, /dup\.ts:2-2/);
+    assert.match(results[1]!.detail, /dup\.ts:4-4/);
+    assert.equal(goodReport.totals.unexpectedObservations, 0);
+
+    const singleObservation = await runCompareV2(
+      manifestInput,
+      {
+        reportVersion: 2,
+        manifestVersion: 2,
+        releaseRelayRevision: REVISION,
+        breakscopeRevision: BREAKSCOPE_REVISION,
+        ruleset: RULESET,
+        files: [{ file: "dup.ts", disposition: "scanned" }],
+        observations: [observation(2)]
+      },
+      dir
+    );
+    assert.equal(singleObservation.scenarios[0]!.results[0]!.status, "matched");
+    assert.equal(singleObservation.scenarios[0]!.results[1]!.status, "missing");
+    assert.equal(singleObservation.totals.unexpectedObservations, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("v2: compareReports rejects mismatched oracle and report versions", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-"));
+  try {
+    const manifestResult = validateManifest(baseManifest());
+    assert.ok(manifestResult.ok);
+    const v2Report = validateReport({
+      reportVersion: 2,
+      manifestVersion: 2,
+      releaseRelayRevision: REVISION,
+      breakscopeRevision: BREAKSCOPE_REVISION,
+      ruleset: RULESET,
+      files: [],
+      observations: []
+    });
+    assert.ok(v2Report.ok);
+    const rejected = await compareReports(
+      manifestResult.manifest,
+      v2Report.report,
+      dir
+    );
+    assert.equal(rejected.ok, false);
+    if (!rejected.ok) {
+      assert.match(rejected.errors[0]!, /compares only against reportVersion 1/);
+    }
+
+    const v2Manifest = validateManifest({
+      version: 2,
+      revision: REVISION,
+      scenarios: [
+        v2Scenario("guard-scenario", "observed.ts", "observed-anchor", [
+          v2Located(
+            "guard-scenario.repos.list",
+            "observed.ts",
+            "observed-anchor-fail",
+            "repos.list"
+          )
+        ])
+      ]
+    });
+    assert.ok(v2Manifest.ok);
+    const v1Report = baseReport();
+    const rejectedBackwards = await compareReports(v2Manifest.manifest, v1Report, dir);
+    assert.equal(rejectedBackwards.ok, false);
+    if (!rejectedBackwards.ok) {
+      assert.match(
+        rejectedBackwards.errors[0]!,
+        /compares only against reportVersion 2/
+      );
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("v2: an uncertain scenario cannot drain a sibling scenario sharing its file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-"));
+  try {
+    await writeFile(
+      join(dir, "shared.ts"),
+      [
+        "// first-anchor",
+        "export const sharedOne = 1;",
+        "// uncertain-scenario-anchor",
+        "export const sharedTwo = 2;"
+      ].join("\n")
+    );
+    const locatedExpectation = (id: string, anchor: string) =>
+      v2Located(id, "shared.ts", anchor, "repos.list");
+    const manifestInput: OracleManifest = {
+      version: 2,
+      revision: REVISION,
+      scenarios: [
+        // The uncertain scenario is declared FIRST; it must not swallow the
+        // observation that the later located scenario still needs.
+        v2Scenario("uncertain-first", "shared.ts", "uncertain-scenario-anchor", [
+          { outcome: "uncertain", confidence: "none" }
+        ]),
+        v2Scenario("located-second", "shared.ts", "first-anchor", [
+          locatedExpectation("located-second.repos.list", "export const sharedOne")
+        ])
+      ]
+    };
+    const reportInput = {
+      reportVersion: 2,
+      manifestVersion: 2,
+      releaseRelayRevision: REVISION,
+      breakscopeRevision: BREAKSCOPE_REVISION,
+      ruleset: RULESET,
+      files: [{ file: "shared.ts", disposition: "scanned" as const }],
+      observations: [
+        {
+          file: "shared.ts",
+          lineStart: 2,
+          lineEnd: 2,
+          provider: "github" as const,
+          identifier: "repos.list",
+          evidenceKind: "sdk-call",
+          confidence: "alertable" as const
+        }
+      ]
+    };
+    const report = await runCompareV2(manifestInput, reportInput, dir);
+    const located = report.scenarios.find(
+      (entry) => entry.scenarioId === "located-second"
+    )!.results[0]!;
+    assert.equal(located.status, "matched");
+    assert.equal(report.totals.unresolved, 1);
+    assert.equal(report.totals.matched, 1);
+    assert.equal(report.ok, true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("v2: compareReports rejects a report whose manifestVersion does not match", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coverage-compare-v2-"));
+  try {
+    await writeFile(join(dir, "observed.ts"), SOURCES["observed.ts"]!);
+    const manifestResult = validateManifest({
+      version: 2,
+      revision: REVISION,
+      scenarios: [
+        v2Scenario("guard-manifest-version", "observed.ts", "observed-anchor", [
+          v2Located(
+            "guard.repos.list",
+            "observed.ts",
+            "export const second = 2;",
+            "repos.list"
+          )
+        ])
+      ]
+    });
+    assert.ok(manifestResult.ok);
+    const staleVersionReport = validateReport({
+      reportVersion: 2,
+      manifestVersion: 1,
+      releaseRelayRevision: REVISION,
+      breakscopeRevision: BREAKSCOPE_REVISION,
+      ruleset: RULESET,
+      files: [{ file: "observed.ts", disposition: "scanned" }],
+      observations: []
+    });
+    assert.ok(staleVersionReport.ok);
+    const rejected = await compareReports(
+      manifestResult.manifest,
+      staleVersionReport.report,
+      dir
+    );
+    assert.equal(rejected.ok, false);
+    if (!rejected.ok) {
+      assert.match(rejected.errors[0]!, /does not match manifest.version/);
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -23,6 +23,13 @@ export interface OracleExpectation {
   evidenceKind?: string;
   confidence?: ConfidenceBand;
   reason?: string;
+  /** manifestVersion 2 only: stable identity, required on observation/demoted. */
+  id?: string;
+  /**
+   * manifestVersion 2 only: provider-neutral anchor inside the relevant syntax
+   * range, required on observation/demoted.
+   */
+  locationAnchor?: OracleScenarioSource;
 }
 
 export interface OracleScenarioSource {
@@ -41,7 +48,7 @@ export interface OracleScenario {
 }
 
 export interface OracleManifest {
-  version: 1;
+  version: 1 | 2;
   revision: string;
   scenarios: OracleScenario[];
 }
@@ -70,8 +77,13 @@ const EXPECTATION_KEYS = [
   "identifier",
   "evidenceKind",
   "confidence",
-  "reason"
+  "reason",
+  "id",
+  "locationAnchor"
 ] as const;
+
+/** Outcomes that pin a specific call site and therefore need id + locationAnchor in v2. */
+const LOCATED_OUTCOMES: readonly Outcome[] = ["observation", "demoted"];
 
 const OUTCOME_SHAPE: Record<
   Outcome,
@@ -149,9 +161,10 @@ export function validateManifest(input: unknown): ValidationResult {
   let validatedRevision: string | undefined;
   const validatedScenarios: OracleScenario[] = [];
 
-  if (input.version !== 1) {
-    errors.push("manifest.version must be the integer 1");
+  if (input.version !== 1 && input.version !== 2) {
+    errors.push("manifest.version must be the integer 1 or 2");
   }
+  const manifestVersion: 1 | 2 = input.version === 2 ? 2 : 1;
 
   if (typeof input.revision !== "string" || !FULL_SHA.test(input.revision)) {
     errors.push("manifest.revision must be a full 40-character git commit SHA");
@@ -168,6 +181,8 @@ export function validateManifest(input: unknown): ValidationResult {
 
   const seenIds = new Set<string>();
   const seenAnchors = new Set<string>();
+  const seenExpectationIds = new Set<string>();
+  const seenAnchorLocations = new Set<string>();
 
   for (const [index, raw] of input.scenarios.entries()) {
     const where = `manifest.scenarios[${index}]`;
@@ -232,6 +247,7 @@ export function validateManifest(input: unknown): ValidationResult {
       }
       if (sourceFile !== undefined && sourceAnchor !== undefined) {
         validatedSource = { file: sourceFile, anchor: sourceAnchor };
+        seenAnchorLocations.add(`${sourceFile}\u0000${sourceAnchor}`);
       }
     }
 
@@ -268,6 +284,106 @@ export function validateManifest(input: unknown): ValidationResult {
         let validatedEvidenceKind: string | undefined;
         let validatedConfidence: ConfidenceBand | undefined;
         let validatedReason: string | undefined;
+        let validatedExpectationId: string | undefined;
+        let validatedLocationAnchor: OracleScenarioSource | undefined;
+
+        if (rawExpectation.id !== undefined) {
+          const id = requireNonEmptyString(
+            expectationWhere,
+            rawExpectation.id,
+            "id",
+            errors
+          );
+          if (id !== undefined) {
+            if (seenExpectationIds.has(id)) {
+              errors.push(
+                `${expectationWhere}.id ${id} is duplicated across expectations`
+              );
+            } else {
+              seenExpectationIds.add(id);
+            }
+            validatedExpectationId = id;
+          }
+        }
+        if (rawExpectation.locationAnchor !== undefined) {
+          if (!isRecord(rawExpectation.locationAnchor)) {
+            errors.push(`${expectationWhere}.locationAnchor must be an object`);
+          } else {
+            const anchorWhere = `${expectationWhere}.locationAnchor`;
+            rejectUnknownKeys(
+              anchorWhere,
+              rawExpectation.locationAnchor,
+              SOURCE_KEYS,
+              errors
+            );
+            const anchorFile = requireNonEmptyString(
+              anchorWhere,
+              rawExpectation.locationAnchor.file,
+              "file",
+              errors
+            );
+            const anchorValue = requireNonEmptyString(
+              anchorWhere,
+              rawExpectation.locationAnchor.anchor,
+              "anchor",
+              errors
+            );
+            if (anchorFile !== undefined && anchorValue !== undefined) {
+              const locationKey = `${anchorFile}\u0000${anchorValue}`;
+              if (seenAnchorLocations.has(locationKey)) {
+                errors.push(
+                  `${anchorWhere} ${anchorValue} is duplicated in ${anchorFile}; anchors must identify exactly one location`
+                );
+              } else {
+                seenAnchorLocations.add(locationKey);
+              }
+              for (const provider of providers) {
+                if (anchorValue.toLowerCase().includes(provider)) {
+                  errors.push(
+                    `${anchorWhere}.anchor must not contain the provider name ${provider}`
+                  );
+                }
+              }
+              if (anchorValue.includes("http://") || anchorValue.includes("https://")) {
+                errors.push(`${anchorWhere}.anchor must not contain an endpoint URL`);
+              }
+              validatedLocationAnchor = { file: anchorFile, anchor: anchorValue };
+            }
+          }
+        }
+
+        if (manifestVersion === 1) {
+          if (rawExpectation.id !== undefined) {
+            errors.push(`${expectationWhere}.id is only allowed in manifest version 2`);
+          }
+          if (rawExpectation.locationAnchor !== undefined) {
+            errors.push(
+              `${expectationWhere}.locationAnchor is only allowed in manifest version 2`
+            );
+          }
+        } else if (LOCATED_OUTCOMES.includes(validatedOutcome as Outcome)) {
+          if (rawExpectation.id === undefined) {
+            errors.push(
+              `${expectationWhere}.id is required for outcome ${outcome} in manifest version 2`
+            );
+          }
+          if (rawExpectation.locationAnchor === undefined) {
+            errors.push(
+              `${expectationWhere}.locationAnchor is required for outcome ${outcome} in manifest version 2`
+            );
+          }
+        } else {
+          if (rawExpectation.id !== undefined) {
+            errors.push(
+              `${expectationWhere}.id must not be present for outcome ${outcome}`
+            );
+          }
+          if (rawExpectation.locationAnchor !== undefined) {
+            errors.push(
+              `${expectationWhere}.locationAnchor must not be present for outcome ${outcome}`
+            );
+          }
+        }
 
         if (rawExpectation.provider !== undefined) {
           if (
@@ -365,6 +481,9 @@ export function validateManifest(input: unknown): ValidationResult {
         if (validatedReason !== undefined) exp.reason = validatedReason;
         else if (typeof rawExpectation.reason === "string")
           exp.reason = rawExpectation.reason;
+        if (validatedExpectationId !== undefined) exp.id = validatedExpectationId;
+        if (validatedLocationAnchor !== undefined)
+          exp.locationAnchor = validatedLocationAnchor;
         expectationsForScenario.push(exp);
       }
       validatedExpectations = expectationsForScenario;
@@ -412,7 +531,7 @@ export function validateManifest(input: unknown): ValidationResult {
     return { ok: false, errors };
   }
   const manifest: OracleManifest = {
-    version: 1,
+    version: manifestVersion,
     revision: validatedRevision!,
     scenarios: validatedScenarios
   };

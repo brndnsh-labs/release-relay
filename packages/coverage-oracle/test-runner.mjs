@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const expectedSuites = [
   "compare.test.js",
   "normalize.test.js",
+  "pipeline.test.js",
   "report.test.js",
   "revision.test.js",
   "schema.test.js"

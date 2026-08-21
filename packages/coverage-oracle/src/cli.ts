@@ -274,9 +274,9 @@ async function main(): Promise<number> {
     }
     return 1;
   }
-  if (reportResult.report.reportVersion !== 1) {
+  if (reportResult.report.reportVersion !== result.manifest.version) {
     process.stderr.write(
-      "error: compare does not yet support reportVersion 2; use validate-report or wait for the v2 comparator\n"
+      `error: a version-${result.manifest.version} oracle manifest compares only against reportVersion ${result.manifest.version}; the report declares reportVersion ${reportResult.report.reportVersion}\n`
     );
     return 1;
   }
