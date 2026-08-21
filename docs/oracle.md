@@ -59,7 +59,7 @@ The comparison report records the resolved line range. A source edit that moves 
 
 ### Revision pinning
 
-The manifest `revision` must be a full 40-character SHA that exists locally as a commit. The validator checks anchors against the working tree by default. The revision-aware mode (`coverage-oracle validate <manifest> --source-root <path> --check-revision`) additionally proves that the declared revision exists locally, that `HEAD` is checked out at that revision, and that every scenario file and anchor exists exactly once in the Git tree at that revision — without fetching remote history. Operational canary scans target the pinned revision, not mutable `main`, and must be run from a checkout of that exact commit.
+The manifest `revision` must be a full 40-character SHA that exists locally as a commit. The validator checks anchors against the directory passed to `--source-root`. The revision-aware mode (`coverage-oracle validate <manifest> --source-root <path> --check-revision`) additionally proves that the declared revision exists locally, that `HEAD` is checked out at that revision, and that every scenario file and anchor exists exactly once in the Git tree at that revision — without fetching remote history. Operational canary scans target the pinned revision, not mutable `main`, and must be run from a checkout of that exact commit.
 
 ## Confidence bands
 
