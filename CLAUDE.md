@@ -35,6 +35,7 @@ Node.js 24 or newer and pnpm 10 are required.
 - `docs/security.md` defines credentials and external-write rules.
 - `docs/roadmap.md` maps milestones, completion conditions, and retrospective status.
 - `docs/canary-runbook.md` is the non-authorizing M6 preflight and execution handoff.
+- `docs/model-evaluation.md` records the optional manual procedure for controlled model comparisons.
 
 Keep dependencies one-way: contracts and pure domain packages must not import adapters or applications. A future UI or hosted runtime may live under `apps/*`, but choosing one is still a separate architecture decision.
 

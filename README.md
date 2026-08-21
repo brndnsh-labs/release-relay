@@ -39,5 +39,6 @@ cycle check
 - [Security model](docs/security.md)
 - [Roadmap](docs/roadmap.md)
 - [Breakscope canary runbook](docs/canary-runbook.md)
+- [Manual model-evaluation procedure](docs/model-evaluation.md)
 
 Repository source, examples, and test data are synthetic. Never add real credentials, private repository contents, customer information, or live billing data.
