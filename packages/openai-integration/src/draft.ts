@@ -196,7 +196,10 @@ export function createOpenAiDrafter(
   return {
     draft: (request: DraftRequest) =>
       run(request.operationId, async () => {
-        const boundedCandidates = buildDraftInput(request.candidates);
+        const includedCandidates = request.candidates.filter(
+          (candidate) => candidate.included
+        );
+        const boundedCandidates = buildDraftInput(includedCandidates);
         const raw = await api.createResponse({
           model: options.model,
           input: JSON.stringify(boundedCandidates),
@@ -222,7 +225,7 @@ export function createOpenAiDrafter(
             timeSource: "provider-reported"
           }
         };
-        const outcome = validateReleaseDraft(request.candidates, candidateDraft);
+        const outcome = validateReleaseDraft(includedCandidates, candidateDraft);
         return outcome.ok
           ? { kind: "validated-draft", draft: outcome.draft }
           : { kind: outcome.reason, findings: outcome.findings };

@@ -226,6 +226,32 @@ test("an invented source citation is a completed operation with an unsupported-c
   });
 });
 
+test("a citation for an excluded candidate is unsupported", async () => {
+  const api = apiWith({
+    createResponse: () =>
+      Promise.resolve(
+        completedResponse(
+          draftBodyText({
+            changeGroups: [
+              {
+                kind: "changed",
+                heading: "Changed",
+                items: [{ summary: "Clarified setup", sourceIdentities: ["issue/7"] }]
+              }
+            ]
+          })
+        )
+      )
+  });
+  const result = await draftWith(api).draft({ operationId: "draft-1", candidates });
+  assert.equal(result.status, "completed");
+  if (result.status !== "completed") return;
+  assert.deepEqual(result.value, {
+    kind: "unsupported-claims",
+    findings: [{ code: "unknown-source", sourceIdentity: "issue/7" }]
+  });
+});
+
 test("a rate-limited provider call fails with the rate-limit error class", async () => {
   const api = apiWith({ createResponse: () => Promise.reject({ status: 429 }) });
   const result = await draftWith(api).draft({ operationId: "draft-1", candidates });
