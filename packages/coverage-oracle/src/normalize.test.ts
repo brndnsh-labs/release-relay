@@ -320,3 +320,22 @@ test("CLI normalization emits a byte-stable v2 report", async () => {
     }
   });
 });
+
+test("normalization stamps the oracle manifest version into the v2 report", async () => {
+  await withRepo(async (dir, revision) => {
+    const v2Manifest = {
+      ...manifest(revision),
+      version: 2 as const
+    };
+    const result = await normalizeSnapshot(
+      v2Manifest,
+      snapshot(revision),
+      BREAKSCOPE_REV,
+      dir
+    );
+    assert.equal(result.ok, true, result.ok ? "" : result.errors.join("; "));
+    if (!result.ok) return;
+    assert.equal(result.report.manifestVersion, 2);
+    assert.ok(validateReport(result.report).ok);
+  });
+});

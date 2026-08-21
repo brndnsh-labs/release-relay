@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "revision": "3eb4ee65f7e2c7045301144622edab53f0ab8a54",
+  "version": 2,
+  "revision": "c3f7cef9fe58df6d790a87a2c7fb05634cf85ee0",
   "scenarios": [
     {
       "id": "bootstrap-phase",
@@ -15,7 +15,12 @@
           "provider": "github",
           "identifier": "repos.list",
           "evidenceKind": "sdk-call",
-          "confidence": "supporting"
+          "confidence": "supporting",
+          "id": "bootstrap-phase.repos.list",
+          "locationAnchor": {
+            "file": "src/index.ts",
+            "anchor": "repositoryPhase = \"specification\""
+          }
         }
       ],
       "rationale": "Synthetic example that exercises the version-1 manifest shape and the anchor-resolution check.",
@@ -35,38 +40,63 @@
           "provider": "github",
           "identifier": "repos.get",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-read-adapter.repos.get",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/live.ts",
+            "anchor": "client.rest.repos.get(params)"
+          }
         },
         {
           "outcome": "observation",
           "provider": "github",
           "identifier": "repos.compareCommits",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-read-adapter.repos.compareCommits",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/live.ts",
+            "anchor": "client.rest.repos.compareCommits(params)"
+          }
         },
         {
           "outcome": "observation",
           "provider": "github",
           "identifier": "pulls.list",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-read-adapter.pulls.list",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/live.ts",
+            "anchor": "pulls.list(listParams)"
+          }
         },
         {
           "outcome": "observation",
           "provider": "github",
           "identifier": "issues.listForRepo",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-read-adapter.issues.listForRepo",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/live.ts",
+            "anchor": "listForRepo(listParams)"
+          }
         },
         {
           "outcome": "observation",
           "provider": "github",
           "identifier": "repos.listReleases",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-read-adapter.repos.listReleases",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/live.ts",
+            "anchor": "repos.listReleases(listParams)"
+          }
         }
       ],
-      "rationale": "The approved live-read composition root uses official Octokit REST methods for the documented source-gathering workflow; contributors are range-commit authors derived from the comparison commits[] (see contributor-derivation-from-commits in live.ts), not the repository's all-time contributors endpoint — tests inject a fake and never execute the calls.",
+      "rationale": "The approved live-read composition root uses official Octokit REST methods for the documented source-gathering workflow; contributors are range-commit authors derived from the comparison commits[] (see contributor-derivation-from-commits in live.ts), not the repository's all-time contributors endpoint \u2014 tests inject a fake and never execute the calls.",
       "reviewedBy": "maintainer",
       "reviewedAt": "2026-08-19"
     },
@@ -83,21 +113,36 @@
           "provider": "github",
           "identifier": "repos.get",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-release-publisher.repos.get",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/publish.ts",
+            "anchor": "repos.get(getParams)"
+          }
         },
         {
           "outcome": "observation",
           "provider": "github",
           "identifier": "repos.getReleaseByTag",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-release-publisher.repos.getReleaseByTag",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/publish.ts",
+            "anchor": "repos.getReleaseByTag(getParams)"
+          }
         },
         {
           "outcome": "observation",
           "provider": "github",
           "identifier": "repos.createRelease",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-release-publisher.repos.createRelease",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/publish.ts",
+            "anchor": "repos.createRelease(createParams)"
+          }
         }
       ],
       "rationale": "The isolated Octokit writer performs the documented authorization, reconciliation, and confirmed release mutation calls; tests inject a fake and never execute them.",
@@ -117,7 +162,12 @@
           "provider": "openai",
           "identifier": "responses.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "openai-structured-drafter.responses.create",
+          "locationAnchor": {
+            "file": "packages/openai-integration/src/draft.ts",
+            "anchor": "responses.create(createParams)"
+          }
         }
       ],
       "rationale": "The explicit live-AI composition root uses the official Responses SDK method with a strict schema and disabled storage; tests inject a fake and never execute the call.",
@@ -137,7 +187,12 @@
           "provider": "anthropic",
           "identifier": "messages.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "anthropic-draft-reviewer.messages.create",
+          "locationAnchor": {
+            "file": "packages/anthropic-integration/src/review.ts",
+            "anchor": "messages.create(createParams)"
+          }
         }
       ],
       "rationale": "The explicit live-AI composition root uses the official Messages SDK method with structured json_schema output; tests inject a fake and never execute the call.",
@@ -157,42 +212,72 @@
           "provider": "stripe",
           "identifier": "products.list",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-sponsor-billing.products.list",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/billing.ts",
+            "anchor": "client.products.list({ limit, active: true })"
+          }
         },
         {
           "outcome": "observation",
           "provider": "stripe",
           "identifier": "products.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-sponsor-billing.products.create",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/billing.ts",
+            "anchor": "client.products.create("
+          }
         },
         {
           "outcome": "observation",
           "provider": "stripe",
           "identifier": "prices.list",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-sponsor-billing.prices.list",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/billing.ts",
+            "anchor": "client.prices.list({ product, active: true, limit: 100 })"
+          }
         },
         {
           "outcome": "observation",
           "provider": "stripe",
           "identifier": "prices.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-sponsor-billing.prices.create",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/billing.ts",
+            "anchor": "client.prices.create("
+          }
         },
         {
           "outcome": "observation",
           "provider": "stripe",
           "identifier": "checkout.sessions.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-sponsor-billing.checkout.sessions.create",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/billing.ts",
+            "anchor": "client.checkout.sessions.create("
+          }
         },
         {
           "outcome": "observation",
           "provider": "stripe",
           "identifier": "billingPortal.sessions.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-sponsor-billing.billingPortal.sessions.create",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/billing.ts",
+            "anchor": "client.billingPortal.sessions.create("
+          }
         }
       ],
       "rationale": "The explicit live-billing composition root uses official product, price, Checkout, and billing-portal SDK methods with per-resource idempotency keys and reuses matching resources instead of mutating an active price; tests inject a fake and never execute the calls.",
@@ -212,7 +297,12 @@
           "provider": "stripe",
           "identifier": "webhooks.constructEvent",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-webhook-projection.webhooks.constructEvent",
+          "locationAnchor": {
+            "file": "packages/stripe-integration/src/webhook.ts",
+            "anchor": "webhooks.constructEvent(rawBody"
+          }
         }
       ],
       "rationale": "The official Stripe SDK signature-verification method runs entirely offline against bytes already received; only a signature-verified event of a documented type is mapped and projected, deduplicated by event id plus payload hash. Tests use generateTestHeaderString to sign fixtures locally and never send or receive network traffic.",
@@ -232,7 +322,12 @@
           "provider": "github",
           "identifier": "repos.compareCommits",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-atomic-maintainer-cli.repos.compareCommits",
+          "locationAnchor": {
+            "file": "scenarios/atomic/github-maintainer-cli/src/index.ts",
+            "anchor": "rest.repos.compareCommits({"
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises a direct-construction client shape distinct from packages/github-integration/src/live.ts's injected adapter; the code never runs and the token is an explicit parameter, never loaded from the environment.",
@@ -252,7 +347,12 @@
           "provider": "github",
           "identifier": "repos.createRelease",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "github-atomic-release-helper.repos.createRelease",
+          "locationAnchor": {
+            "file": "scenarios/atomic/github-release-helper/src/index.ts",
+            "anchor": "rest.repos.createRelease({"
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises the class-field client-construction shape; the call is only ever prepared, never sent, and the workspace has no runtime script or test that invokes it.",
@@ -272,7 +372,12 @@
           "provider": "github",
           "identifier": "gists.listForUser",
           "evidenceKind": "sdk-call",
-          "confidence": "supporting"
+          "confidence": "supporting",
+          "id": "github-atomic-unrelated-negative.gists.listForUser",
+          "locationAnchor": {
+            "file": "scenarios/atomic/github-unrelated-negative/src/index.ts",
+            "anchor": "gists.listForUser({ username })"
+          }
         }
       ],
       "rationale": "This call is genuine, correctly attributed GitHub SDK evidence, but it is deliberately unrelated to any Release Relay product operation (repository identity, comparisons, pull requests, issues, contributors, releases, or the confirmed release write), so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for product-critical call sites.",
@@ -292,7 +397,12 @@
           "provider": "openai",
           "identifier": "responses.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "openai-atomic-release-note-drafter.responses.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/openai-release-note-drafter/src/index.ts",
+            "anchor": "client.responses.create({"
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises a direct-construction Responses client shape distinct from packages/openai-integration/src/draft.ts's injected adapter, using the same product-plausible literal model identifier as its tests; the code never runs and the API key is an explicit parameter, never loaded from the environment.",
@@ -312,7 +422,12 @@
           "provider": "openai",
           "identifier": "embeddings.create",
           "evidenceKind": "sdk-call",
-          "confidence": "supporting"
+          "confidence": "supporting",
+          "id": "openai-atomic-unrelated-negative.embeddings.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/openai-unrelated-negative/src/index.ts",
+            "anchor": "client.embeddings.create({"
+          }
         }
       ],
       "rationale": "This call is genuine, correctly attributed OpenAI SDK evidence for a real embeddings-search maintainer utility, but it is deliberately unrelated to the structured, source-grounded release draft that is Release Relay's documented OpenAI product operation, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for the product-critical call site.",
@@ -332,7 +447,12 @@
           "provider": "anthropic",
           "identifier": "messages.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "anthropic-atomic-draft-reviewer.messages.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/anthropic-draft-reviewer/src/index.ts",
+            "anchor": "client.messages.create({"
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises a direct-construction Messages client shape distinct from packages/anthropic-integration/src/review.ts's injected adapter, using the same product-plausible literal model identifier as its tests; the code never runs and the API key is an explicit parameter, never loaded from the environment.",
@@ -352,7 +472,12 @@
           "provider": "anthropic",
           "identifier": "messages.countTokens",
           "evidenceKind": "sdk-call",
-          "confidence": "supporting"
+          "confidence": "supporting",
+          "id": "anthropic-atomic-unrelated-negative.messages.countTokens",
+          "locationAnchor": {
+            "file": "scenarios/atomic/anthropic-unrelated-negative/src/index.ts",
+            "anchor": "client.messages.countTokens({"
+          }
         }
       ],
       "rationale": "This call is genuine, correctly attributed Anthropic SDK evidence for a real token-budget-estimation maintainer utility, but it is deliberately unrelated to the structured draft review or alternate draft that is Release Relay's documented Anthropic product operation, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for the product-critical call site.",
@@ -372,7 +497,12 @@
           "provider": "stripe",
           "identifier": "checkout.sessions.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-atomic-checkout-session.checkout.sessions.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/stripe-checkout-session/src/index.ts",
+            "anchor": "client.checkout.sessions.create({"
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises a factory-construction client shape distinct from packages/stripe-integration/src/billing.ts's injected adapter, and deliberately pins an explicit apiVersion where the product adapter pins only the host, so both dimensions have reviewed coverage; the code never runs and the secret key is an explicit parameter, never loaded from the environment.",
@@ -392,7 +522,12 @@
           "provider": "stripe",
           "identifier": "billingPortal.sessions.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-atomic-customer-portal.billingPortal.sessions.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/stripe-customer-portal/src/index.ts",
+            "anchor": "this.client.billingPortal.sessions.create({"
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises the dependency-injection client-construction shape; the code never runs and the workspace is never given a real client.",
@@ -412,7 +547,12 @@
           "provider": "stripe",
           "identifier": "loadStripe",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "stripe-atomic-browser-checkout-handoff.loadStripe",
+          "locationAnchor": {
+            "file": "scenarios/atomic/stripe-browser-checkout-handoff/src/index.ts",
+            "anchor": "handOffToHostedCheckout("
+          }
         }
       ],
       "rationale": "The browser Stripe.js load call confirms the client environment is ready before handing off to the hosted Checkout URL the server already prepared; the redirect itself is an injected callback so this workspace has no DOM library dependency, and the publishable key is an explicit parameter and an unmistakably fake structural value, never a real credential. The code never runs.",
@@ -432,7 +572,12 @@
           "provider": "stripe",
           "identifier": "balance.retrieve",
           "evidenceKind": "sdk-call",
-          "confidence": "supporting"
+          "confidence": "supporting",
+          "id": "stripe-atomic-unrelated-negative.balance.retrieve",
+          "locationAnchor": {
+            "file": "scenarios/atomic/stripe-unrelated-negative/src/index.ts",
+            "anchor": "client.balance.retrieve()"
+          }
         }
       ],
       "rationale": "This call is genuine, correctly attributed Stripe SDK evidence for a real account-balance maintainer utility, but it is deliberately unrelated to sponsor-tier products and prices, Checkout, the billing portal, and signed webhooks, which are Release Relay's documented Stripe product operations, so it is reviewed at supporting rather than alertable confidence to keep the alertable band reserved for product-critical call sites.",
@@ -452,7 +597,12 @@
           "provider": "github",
           "identifier": "repos.compareCommits",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "composed-relay-source-reader.repos.compareCommits",
+          "locationAnchor": {
+            "file": "scenarios/composed/relay-deployment/src/github/source-reader.ts",
+            "anchor": "client.rest.repos.compareCommits({"
+          }
         },
         {
           "outcome": "no-observation",
@@ -478,7 +628,12 @@
           "provider": "openai",
           "identifier": "responses.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "composed-relay-drafter.responses.create",
+          "locationAnchor": {
+            "file": "scenarios/composed/relay-deployment/src/drafting/drafter.ts",
+            "anchor": "api.responses.create({"
+          }
         },
         {
           "outcome": "no-observation",
@@ -504,7 +659,12 @@
           "provider": "anthropic",
           "identifier": "messages.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "composed-relay-reviewer.messages.create",
+          "locationAnchor": {
+            "file": "scenarios/composed/relay-deployment/src/review/reviewer.ts",
+            "anchor": "api[\"messages\"].create({"
+          }
         }
       ],
       "rationale": "The review module owns no construction: the composition root at scenarios/composed/relay-deployment/src/relay.ts constructs the Messages client and injects it as the `api` parameter, and the call site reaches the messages namespace through bracket access to vary the call-expression shape from the dot-access forms elsewhere. The workspace compiles only and is never invoked.",
@@ -524,7 +684,12 @@
           "provider": "stripe",
           "identifier": "billingPortal.sessions.create",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "composed-relay-sponsor-portal.billingPortal.sessions.create",
+          "locationAnchor": {
+            "file": "scenarios/composed/relay-deployment/src/billing/sponsor-portal.ts",
+            "anchor": "this.client.billingPortal.sessions.create({"
+          }
         }
       ],
       "rationale": "The sponsor-portal module owns no construction: the composition root at scenarios/composed/relay-deployment/src/relay.ts constructs the Stripe client and injects it into the class field, and the portal entry point is an arrow-function property that reads the class-held client through `this`, exercising the arrow-function class-access shape at the actual call site. The workspace compiles only and is never given a real client.",
@@ -625,7 +790,12 @@
           "provider": "openai",
           "identifier": "responses.create",
           "evidenceKind": "http-request",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "http-atomic-full-url-drafter.responses.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/http-full-url/src/index.ts",
+            "anchor": "draftViaResponsesEndpoint("
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises the full-URL raw HTTP call shape against the documented drafting endpoint, distinct from the SDK call sites; the request can never execute, the input is inert fixed text, and the API key is an explicit parameter, never loaded from the environment.",
@@ -645,7 +815,12 @@
           "provider": "anthropic",
           "identifier": "messages.create",
           "evidenceKind": "http-request",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "http-atomic-base-path-reviewer.messages.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/http-base-plus-path/src/index.ts",
+            "anchor": "reviewViaMessagesEndpoint("
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises the base-plus-path raw HTTP call shape against the documented review endpoint, with the version header matching the value the installed SDK itself sends; the request can never execute, the input is an inert summary, and the API key is an explicit parameter, never loaded from the environment.",
@@ -665,7 +840,12 @@
           "provider": "stripe",
           "identifier": "billingPortal.sessions.create",
           "evidenceKind": "http-request",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "http-atomic-template-portal-opener.billingPortal.sessions.create",
+          "locationAnchor": {
+            "file": "scenarios/atomic/http-template-literal/src/index.ts",
+            "anchor": "openPortalViaTemplateLiteral("
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises the template-literal raw HTTP call shape against the documented billing-portal endpoint with form encoding; the request can never execute, the customer and return URL are inert structural examples, and the secret key is an explicit parameter, never loaded from the environment.",
@@ -685,7 +865,12 @@
           "provider": "github",
           "identifier": "repos.compareCommits",
           "evidenceKind": "http-request",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "id": "http-atomic-narrow-wrapper-reader.repos.compareCommits",
+          "locationAnchor": {
+            "file": "scenarios/atomic/http-narrow-wrapper/src/index.ts",
+            "anchor": "readComparisonViaWrapper("
+          }
         }
       ],
       "rationale": "A small, reviewed, compile-only workspace exercises the narrow-wrapper raw HTTP call shape: the provider evidence sits at the actual call inside the wrapper while the resource path is assembled at the caller; the request can never execute and the token is an explicit parameter, never loaded from the environment.",
@@ -988,7 +1173,12 @@
           "provider": "openai",
           "identifier": "responses.create",
           "evidenceKind": "sdk-call",
-          "confidence": "demoted"
+          "confidence": "demoted",
+          "id": "disposition-test-path-draft.responses.create",
+          "locationAnchor": {
+            "file": "scenarios/negative-controls/path-dispositions/src/test/draft-controls.ts",
+            "anchor": "client.responses.create({"
+          }
         }
       ],
       "rationale": "The SDK usage is genuine and correctly attributed, but the source-path policy deliberately demotes test paths below the alertable band, so the reviewed expectation is a demoted observation rather than an alertable one. The workspace compiles only, no test runner executes this file, and the API key is an explicit parameter, never loaded from the environment.",
@@ -1008,7 +1198,12 @@
           "provider": "stripe",
           "identifier": "billingPortal.sessions.create",
           "evidenceKind": "sdk-call",
-          "confidence": "demoted"
+          "confidence": "demoted",
+          "id": "disposition-fixture-path-portal.billingPortal.sessions.create",
+          "locationAnchor": {
+            "file": "scenarios/negative-controls/path-dispositions/src/fixture/portal-sample.ts",
+            "anchor": "client.billingPortal.sessions.create({"
+          }
         }
       ],
       "rationale": "The SDK usage is genuine and correctly attributed, but the source-path policy deliberately demotes fixture paths below the alertable band, so the reviewed expectation is a demoted observation rather than an alertable one. The workspace compiles only and is never invoked, the secret key is an explicit parameter, and the customer id and return URL are inert structural examples.",

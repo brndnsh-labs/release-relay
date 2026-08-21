@@ -1,12 +1,18 @@
 {
   "reportVersion": 2,
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "releaseRelayRevision": "0123456789abcdef0123456789abcdef01234567",
   "breakscopeRevision": "fedcba9876543210fedcba9876543210fedcba98",
   "ruleset": "breakscope-ruleset@2026-08-19",
   "files": [
-    { "file": "src/index.ts", "disposition": "scanned" },
-    { "file": "packages/github-integration/src/publish.ts", "disposition": "scanned" },
+    {
+      "file": "src/index.ts",
+      "disposition": "scanned"
+    },
+    {
+      "file": "packages/github-integration/src/publish.ts",
+      "disposition": "scanned"
+    },
     {
       "file": "scenarios/negative-controls/path-dispositions/src/generated/provider-snapshot.ts",
       "disposition": "excluded",

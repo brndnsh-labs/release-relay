@@ -63,8 +63,20 @@ test("unsupported report or manifest versions are rejected", () => {
     "reportVersion must be the integer 1 or 2"
   );
   expectInvalid(
-    { ...base, manifestVersion: 2 },
-    "manifestVersion must be the integer 1"
+    { ...base, reportVersion: 1, manifestVersion: 2 },
+    "manifestVersion must be the integer 1 for reportVersion 1"
+  );
+  expectInvalid(
+    { ...base, manifestVersion: 3 },
+    "manifestVersion must be the integer 1 or 2 for reportVersion 2"
+  );
+});
+
+test("a v2 report accepts manifestVersion 1 or 2 and rejects others", () => {
+  const v2 = { ...base, reportVersion: 2, observations: [] };
+  expectInvalid(
+    { ...v2, manifestVersion: 3 },
+    "manifestVersion must be the integer 1 or 2 for reportVersion 2"
   );
 });
 

@@ -417,3 +417,79 @@ test("CLI validation rejects a source path that escapes through a symlink", asyn
     await rm(outsideDir, { recursive: true, force: true });
   }
 });
+
+test("revision-aware validation proves expectation location anchors exactly once", async () => {
+  const repo = await createRepo({
+    "src/index.ts": "export const repositoryPhase = 1;\n",
+    "src/calls.ts": "export const one = 1;\nexport const two = 2;\n"
+  });
+  try {
+    const located: OracleManifest["scenarios"][number] = {
+      ...baseScenario,
+      source: { file: "src/index.ts", anchor: "repositoryPhase" },
+      expectations: [
+        {
+          outcome: "observation",
+          id: "test-scenario.repos.list",
+          provider: "github",
+          identifier: "repos.list",
+          evidenceKind: "sdk-call",
+          confidence: "supporting",
+          locationAnchor: { file: "src/calls.ts", anchor: "export const one" }
+        }
+      ]
+    };
+    const ok = await checkRevisionAnchors(
+      { version: 2, revision: repo.head, scenarios: [located] },
+      repo.dir
+    );
+    assert.deepEqual(ok, []);
+
+    const missing = await checkRevisionAnchors(
+      {
+        version: 2,
+        revision: repo.head,
+        scenarios: [
+          {
+            ...located,
+            expectations: [
+              {
+                ...located.expectations[0]!,
+                locationAnchor: { file: "src/calls.ts", anchor: "absent-anchor" }
+              }
+            ]
+          }
+        ]
+      },
+      repo.dir
+    );
+    assert.equal(missing.length, 1);
+    assert.match(
+      missing[0]!,
+      /test-scenario\.repos\.list: anchor absent-anchor not found/
+    );
+
+    const duplicated = await checkRevisionAnchors(
+      {
+        version: 2,
+        revision: repo.head,
+        scenarios: [
+          {
+            ...located,
+            expectations: [
+              {
+                ...located.expectations[0]!,
+                locationAnchor: { file: "src/calls.ts", anchor: "export const" }
+              }
+            ]
+          }
+        ]
+      },
+      repo.dir
+    );
+    assert.equal(duplicated.length, 1);
+    assert.match(duplicated[0]!, /appears 2 times/);
+  } finally {
+    await rm(repo.dir, { recursive: true, force: true });
+  }
+});

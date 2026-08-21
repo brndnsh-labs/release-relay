@@ -8,11 +8,11 @@ An oracle entry describes an expected observation, expected absence, file dispos
 
 ## Manifest
 
-The manifest is implemented in `packages/coverage-oracle` (validator + CLI), with a validating example under `scenarios/oracle-v1.example.json`. The intended conceptual shape is:
+The manifest is implemented in `packages/coverage-oracle` (validator + CLI), with a validating example under `scenarios/oracle-v2.example.json`. The intended conceptual shape is:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "revision": "full git commit SHA",
   "scenarios": [
     {
@@ -25,10 +25,15 @@ The manifest is implemented in `packages/coverage-oracle` (validator + CLI), wit
       "expectations": [
         {
           "outcome": "observation",
+          "id": "github-release-create-direct.repos.createRelease",
           "provider": "github",
            "identifier": "repos.createRelease",
           "evidenceKind": "sdk-call",
-          "confidence": "alertable"
+          "confidence": "alertable",
+          "locationAnchor": {
+            "file": "packages/github-integration/src/publish.ts",
+            "anchor": "repos.createRelease(createParams)"
+          }
         }
       ],
       "rationale": "The official GitHub adapter performs the call after approval.",
@@ -40,6 +45,13 @@ The manifest is implemented in `packages/coverage-oracle` (validator + CLI), wit
 ```
 
 The implemented schema may refine names, but it must preserve the distinctions described here.
+
+Manifest version 2 gives every positive expectation (`observation` and `demoted`) a stable identity and its own location:
+
+- `id` is a unique, stable expectation identity across the whole manifest. Comparison results are reported per expectation id, so moving or misreporting one call changes only that expectation's result.
+- `locationAnchor` pins a provider-neutral anchor inside the relevant syntax range for that specific call, resolved exactly once at the pinned source revision by `validate --check-revision`. Hygiene rules match scenario anchors: no provider names, endpoints, or model-influencing text.
+- Scenario-level anchors remain and continue to scope negative (`no-observation`), excluded, and uncertain claims; because v2 report observations carry no source anchor, a negative claim is checked against the observations reported in its scenario's file.
+- Version-1 manifests (without ids or location anchors) remain valid input to the retained v1 comparator for historical reports; newly reviewed manifests are version 2.
 
 ## Expectation outcomes
 
@@ -53,13 +65,13 @@ An empty result satisfies only `no-observation` or `excluded` when the reason al
 
 ## Stable source identity
 
-Line numbers are useful output but fragile authoring keys. Each scenario therefore includes a unique, provider-neutral anchor near the relevant syntax. The validator resolves the anchor to a current line and ensures it appears exactly once. Anchors must not contain provider names, endpoints, model IDs, or other text that could itself influence detection.
+Line numbers are useful output but fragile authoring keys. Each scenario therefore includes a unique, provider-neutral anchor near the relevant syntax, and in manifest version 2 every positive expectation adds its own anchor inside the specific call's syntax range. The validator resolves each anchor to a current line and ensures it appears exactly once. Anchors must not contain provider names, endpoints, model IDs, or other text that could itself influence detection.
 
 The comparison report records the resolved line range. A source edit that moves a call should update the computed location without requiring a hand-edited numeric line, while a deleted or duplicated anchor fails validation.
 
 ### Revision pinning
 
-The manifest `revision` must be a full 40-character SHA that exists locally as a commit. The validator checks anchors against the directory passed to `--source-root`. The revision-aware mode (`coverage-oracle validate <manifest> --source-root <path> --check-revision`) additionally proves that the declared revision exists locally, that `HEAD` is checked out at that revision, and that every scenario file and anchor exists exactly once in the Git tree at that revision — without fetching remote history. Operational canary scans target the pinned revision, not mutable `main`, and must be run from a checkout of that exact commit.
+The manifest `revision` must be a full 40-character SHA that exists locally as a commit. The validator checks all anchors — scenario-level and, in version 2, per-expectation location anchors — against the directory passed to `--source-root`. The revision-aware mode (`coverage-oracle validate <manifest> --source-root <path> --check-revision`) additionally proves that the declared revision exists locally, that `HEAD` is checked out at that revision, and that every scenario file and anchor exists exactly once in the Git tree at that revision — without fetching remote history. Operational canary scans target the pinned revision, not mutable `main`, and must be run from a checkout of that exact commit.
 
 ## Confidence bands
 
@@ -118,7 +130,7 @@ The normalized scan report is the versioned interchange between Breakscope and t
 }
 ```
 
-- `reportVersion` is `2`; `manifestVersion` remains `1` until the separately versioned oracle manifest changes.
+- `reportVersion` is `2`; `manifestVersion` mirrors the oracle manifest version the report was normalized against (`1` or `2`), and the comparator requires it to equal the manifest's own version.
 - `releaseRelayRevision` and `breakscopeRevision` are full 40-character SHAs; the comparator requires `releaseRelayRevision` to equal the manifest `revision` (a mismatch fails comparison, because the oracle and the scan must pin the same commit).
 - `ruleset` is the Breakscope ruleset identifier; `files` carries per-file dispositions (`scanned` or `excluded` + `reason`); each observation preserves the source-free detector `file`, inclusive `lineStart`–`lineEnd` range, provider, identifier, evidence kind, and reviewed confidence band.
 - Normalization validates the snapshot and identity pins, then preserves every validated observation. It does not resolve oracle anchors, demand a reviewed expectation match, discard unrecognized evidence, or generate oracle truth from detector output. The comparator is responsible for classifying an observation as expected or unexpected.
@@ -133,11 +145,11 @@ coverage-oracle compare <manifest.json> <report.json> --source-root <path> [--js
 coverage-oracle normalize <manifest.json> <breakscope-snapshot.json> --breakscope-revision <full-sha> --source-root <path> [--output <path>]
 ```
 
-`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file or anchor is missing or duplicated in that Git tree; it performs no network fetch. `normalize` validates the versioned source-free Breakscope snapshot (`scenarios/snapshot-v1.example.json`), requires exact repository `brndnsh-labs/release-relay` (ID `1338698763`), `releaseRelayRevision == manifest.revision == HEAD`, `breakscopeRevision` (flag) and `ruleset` (`typescript-deterministic-v5`) identities, `scan.status == completed`, strict per-file dispositions, observation bounds, and exact fields; maps numeric confidence through the reviewed `0.9/0.5` thresholds to `alertable/supporting/demoted` and emits deterministic, lossless `reportVersion:2` JSON (sorted, validated) or fails closed without partial output. The v1 comparator remains available only for validated v1 reports during the staged migration; `coverage-oracle compare` rejects v2 reports with an explicit unsupported-version error until v2 comparison is implemented. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
+`validate --check-revision` fails if the declared revision is absent locally, if `HEAD` does not equal `manifest.revision`, or if any scenario file, scenario anchor, or (in version 2) expectation location anchor is missing or duplicated in that Git tree; it performs no network fetch. `normalize` validates the versioned source-free Breakscope snapshot (`scenarios/snapshot-v1.example.json`), requires exact repository `brndnsh-labs/release-relay` (ID `1338698763`), `releaseRelayRevision == manifest.revision == HEAD`, `breakscopeRevision` (flag) and `ruleset` (`typescript-deterministic-v5`) identities, `scan.status == completed`, strict per-file dispositions, observation bounds, and exact fields; maps numeric confidence through the reviewed `0.9/0.5` thresholds to `alertable/supporting/demoted`, stamps `manifestVersion` from the manifest, and emits deterministic, lossless `reportVersion:2` JSON (sorted, validated) or fails closed without partial output. The comparator routes by oracle version: a version-1 manifest compares only against validated v1 reports through the retained v1 comparator; a version-2 manifest compares against v2 reports by resolving every expectation location anchor at the pinned revision and matching each located expectation independently — by provider, identifier, evidence kind, confidence, and detector-reported line-range coverage — consuming each report observation once and reporting leftovers as unexpected. Report data is never rewritten from the oracle. `--json` emits a stable, source-free JSON report (keys in manifest/report order, no repository source).
 
 ### Runbook
 
-A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate <manifest> --source-root <path> --check-revision` and `coverage-oracle normalize <manifest> <snapshot> --breakscope-revision <sha> --source-root <path>`. Comparison of the normalized v2 report is intentionally staged until the v2 comparator ships; do not downgrade or hand-attribute reports to make the v1 comparator accept them. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report and snapshot are synthetic and must never be generated from current detector output.
+A comparison is reproduced by checking out the pinned Release Relay revision and running `coverage-oracle validate <manifest> --source-root <path> --check-revision` and `coverage-oracle normalize <manifest> <snapshot> --breakscope-revision <sha> --source-root <path>`, then `coverage-oracle compare <manifest> <normalized-report> --source-root <path>`. Do not downgrade or hand-attribute reports to make a comparator accept them. Operational scans pin both repository revisions in their output and must target the reviewed manifest revision, not mutable `main`. CI must not depend on a mutable default branch from another repository. The committed example report and snapshot are synthetic and must never be generated from current detector output.
 
 ## Reports
 

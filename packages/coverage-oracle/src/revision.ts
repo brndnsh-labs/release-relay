@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { collectManifestAnchors } from "./anchors.js";
 import type { OracleManifest } from "./schema.js";
 
 function git(
@@ -123,23 +124,22 @@ export async function checkRevisionAnchors(
     );
   }
 
-  for (const scenario of manifest.scenarios) {
-    const { file, anchor } = scenario.source;
-    const read = readFileAtRevision(revision, file, rootDir);
+  for (const ref of collectManifestAnchors(manifest)) {
+    const read = readFileAtRevision(revision, ref.file, rootDir);
     if (!read.ok) {
       errors.push(
-        `${scenario.id}: source file ${file} not found in revision ${revision}`
+        `${ref.owner}: source file ${ref.file} not found in revision ${revision}`
       );
       continue;
     }
-    const occurrences = read.content.split(anchor).length - 1;
+    const occurrences = read.content.split(ref.anchor).length - 1;
     if (occurrences === 0) {
       errors.push(
-        `${scenario.id}: anchor ${anchor} not found in ${file} at revision ${revision}`
+        `${ref.owner}: anchor ${ref.anchor} not found in ${ref.file} at revision ${revision}`
       );
     } else if (occurrences > 1) {
       errors.push(
-        `${scenario.id}: anchor ${anchor} appears ${occurrences} times in ${file} at revision ${revision}; expected exactly one`
+        `${ref.owner}: anchor ${ref.anchor} appears ${occurrences} times in ${ref.file} at revision ${revision}; expected exactly one`
       );
     }
   }

@@ -137,7 +137,7 @@ export async function normalizeSnapshot(
 
   const report: ScanReportV2 = {
     reportVersion: 2,
-    manifestVersion: 1,
+    manifestVersion: manifest.version,
     releaseRelayRevision: snapshot.releaseRelayRevision,
     breakscopeRevision: snapshot.breakscopeRevision,
     ruleset: snapshot.ruleset,

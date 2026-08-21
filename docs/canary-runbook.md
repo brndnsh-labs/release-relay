@@ -30,7 +30,7 @@ Do not request the execution approval until all are cleared:
 1. [Breakscope #76](https://github.com/brndnsh-labs/Breakscope/issues/76) is approved and the `snapshot-v1` export contract is implemented; `coverage-oracle normalize` (`packages/coverage-oracle/src/normalize.ts`, `scenarios/snapshot-v1.example.json`) validates it offline and maps it to lossless `reportVersion:2`. Do not substitute ad hoc production SQL, retain repository source, or invent file dispositions from missing rows.
 2. `GET https://breakscope.dev/api/health/deep` returned `503` with `deadLetters: false`. `bin/breakscope-admin status` reported 62 `repository.scan.dead-letter` rows, only one with a replay marker. The dry-run replay plan listed 61 unreplayed jobs. [Breakscope #77](https://github.com/brndnsh-labs/Breakscope/issues/77) owns diagnosis and the separately approved bounded replay/disposition; do not roll that production write into the canary approval.
 3. The ordinary authenticated `gh` token cannot enumerate the App installation's selected repositories. Verify repository selection in the GitHub installation settings or through a correctly scoped App/user token without exposing that token. Determine whether Release Relay is already selected before proposing any mutation.
-4. `scenarios/oracle-v1.example.json` is pinned to the complete reviewed M5 corpus revision `3eb4ee65f7e2c7045301144622edab53f0ab8a54` (every scenario file and anchor resolves at that commit; `coverage-oracle validate scenarios/oracle-v1.example.json --source-root <path> --check-revision` proves the pin without network access). Verify the target remains the reviewed manifest revision, not mutable `main`, before a canary target is chosen.
+4. `scenarios/oracle-v2.example.json` is pinned to the complete reviewed M5 corpus revision `c3f7cef9fe58df6d790a87a2c7fb05634cf85ee0` (every scenario file and anchor resolves at that commit; `coverage-oracle validate scenarios/oracle-v2.example.json --source-root <path> --check-revision` proves the pin without network access). Verify the target remains the reviewed manifest revision, not mutable `main`, before a canary target is chosen.
 
 These are live observations, not permanent facts. The later execution pass must refresh them.
 
@@ -43,8 +43,8 @@ Run every command from a clean checkout. Save only non-secret output.
 ```sh
 git fetch origin
 git status --short --branch
-node -e 'const m=require("./scenarios/oracle-v1.example.json"); console.log(m.revision)'
-git cat-file -e "$(node -e 'const m=require("./scenarios/oracle-v1.example.json"); process.stdout.write(m.revision)')^{commit}"
+node -e 'const m=require("./scenarios/oracle-v2.example.json"); console.log(m.revision)'
+git cat-file -e "$(node -e 'const m=require("./scenarios/oracle-v2.example.json"); process.stdout.write(m.revision)')^{commit}"
 git rev-parse HEAD
 gh run list --branch main --limit 5
 pnpm check
@@ -52,7 +52,7 @@ pnpm build
 cycle check
 ```
 
-Record the full manifest revision and verify the complete reviewed corpus from that Git tree via `coverage-oracle validate scenarios/oracle-v1.example.json --source-root <path> --check-revision` (fails if the revision is missing locally, if `HEAD` does not match it, or if any file/anchor is missing/duplicated at that revision, without network fetch). The operational scan must target exactly that SHA even when `main` has moved; never rewrite the reviewed oracle from the scan result.
+Record the full manifest revision and verify the complete reviewed corpus from that Git tree via `coverage-oracle validate scenarios/oracle-v2.example.json --source-root <path> --check-revision` (fails if the revision is missing locally, if `HEAD` does not match it, or if any file/anchor is missing/duplicated at that revision, without network fetch). The operational scan must target exactly that SHA even when `main` has moved; never rewrite the reviewed oracle from the scan result.
 
 ### 2. Verify the GitHub App contract
 
@@ -104,10 +104,10 @@ Stop here. Ask Brandon to approve the exact repository-selection action and firs
    ```sh
    source_parent="$(mktemp -d)"
    source_root="$source_parent/release-relay"
-   release_relay_revision="$(node -e 'const m=require("./scenarios/oracle-v1.example.json"); process.stdout.write(m.revision)')"
+   release_relay_revision="$(node -e 'const m=require("./scenarios/oracle-v2.example.json"); process.stdout.write(m.revision)')"
    git worktree add --detach "$source_root" "$release_relay_revision"
-   coverage-oracle validate scenarios/oracle-v1.example.json --source-root "$source_root" --check-revision
-   coverage-oracle normalize scenarios/oracle-v1.example.json <breakscope-snapshot.json> --breakscope-revision <full-sha> --source-root "$source_root" --output <normalized-report.json>
+   coverage-oracle validate scenarios/oracle-v2.example.json --source-root "$source_root" --check-revision
+   coverage-oracle normalize scenarios/oracle-v2.example.json <breakscope-snapshot.json> --breakscope-revision <full-sha> --source-root "$source_root" --output <normalized-report.json>
    coverage-oracle validate-report <normalized-report.json>
    git worktree remove "$source_root"
    rmdir "$source_parent"
