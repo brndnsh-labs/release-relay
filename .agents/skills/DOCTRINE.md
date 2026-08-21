@@ -1,4 +1,4 @@
-<!-- cycle:rendered template=DOCTRINE.md.tmpl hash=9192ef4b9563 — managed by the-cycle; edit the template, not this file -->
+<!-- cycle:rendered template=DOCTRINE.md.tmpl hash=fe9f5e0d75ab — managed by the-cycle; edit the template, not this file -->
 # Pipeline doctrine (shared)
 
 Single source of truth for the rules the release-relay work-loop skills share. A skill that says
@@ -37,17 +37,22 @@ nothing to be on or off. Status is one `status:*` label on the issue itself.
 | `status:needs-decision` | a product, architecture, security or live-operation decision is required | surface the drafted decision and do not implement it |
 | *(none)* | the idea pile — filed but not scheduled | triage/scope it first; don't pick |
 
-Exactly one `status:*` label at a time: every write clears the whole set before adding one, so
-the states can't overlap. **No label is a real state**, not a gap — it's every issue still waiting
-on a §10.5 certainty call (a review-carved observation, §2; a finding the filer couldn't
-confidently route), and that untriaged pile is where triage starts.
+After a successful status transition, exactly one `status:*` label remains. The ordered write
+clears the whole set before adding the target, so there is a brief unlabeled intermediate event
+but never overlapping status values. Outside that in-flight transition, **no label is a real
+state**, not a gap — it's every issue still waiting on a §10.5 certainty call (a review-carved
+observation, §2; a finding the filer couldn't confidently route), and that untriaged pile is where
+triage starts.
 
 **Ranking pickable work** (`/next`): **milestone first**, then **issue number**; only the earliest milestone with dependency-clear ready work is active.
 
 **A closed issue is "done."** `Closes #<n>` closes the issue on merge, and that close *is* the
 completion record — there is no `status:done`, because a second source of truth can disagree with
-the close and will eventually go stale. The last label the pipeline writes is `status:in-review`;
-the merge finishes the story. The pipeline doesn't argue with the close; it lets the close speak.
+the close and will eventually go stale. Status labels route **open** issues only; the last one may
+remain as the issue's final open-state history after closure, but the open-only board ignores it.
+The pipeline writes `status:in-review` when the PR opens, then lets the merge finish the
+story. Reopening starts a new routing decision: explicitly set the next status; never infer it
+from the retained label.
 
 **A stale-*open* issue may already be shipped.** An umbrella/parent issue's slices often ship
 under sibling-numbered PRs that never reference the umbrella's own number — `git log --grep=#<n>`
@@ -181,6 +186,42 @@ well-specified, small-to-medium, single-area, and **gate-verifiable** (provable 
 unsure, **exclude and surface** — a mis-graded autonomous merge costs trust; a skipped-safe item
 only costs throughput.
 
+**The fast path (`/implement` → `/review` → `/done`).** Ceremony should scale with risk, not apply
+uniformly. A story is fast-path eligible only when it is **all** of: touches **one or two files**,
+every one of them **docs and/or config** (no application/library code), the change is
+**deterministic** — the diff would be the same no matter who wrote it — and §4's gates can **prove**
+it, and it is **none** of the always-brake classes above. When unsure, it is **not** eligible; fall
+back to the normal flow. A mis-graded fast path costs more than the ceremony it was meant to save.
+
+On the fast path, `/implement` fetches the issue once, states a **one-sentence plan** in place of
+the full `## Plan` block, skips task-list/subagent ceremony, makes the edit, runs §4's gates, and
+emits a **verification receipt** instead of a separate narrative report:
+
+```
+## Verification receipt
+**Issue:** #<n>
+**Files:** <changed files, exhaustive>
+**Diff fingerprint:** <first 12 hex chars of sha256(`git diff -- <files>`)>
+**Gates:**
+- `pnpm check` — <PASS/FAIL>
+- `pnpm build` — <PASS/FAIL>
+```
+
+`/review` and `/done` may **consume** that receipt — skipping the reads and re-derivations it
+already proves — but only while a **freshly recomputed** fingerprint over the same file list still
+matches the one in the receipt and every gate in it reads PASS. A stale fingerprint (the tree
+changed since), a missing receipt (a new session, or a normal-path `/implement`), or any gate
+reading FAIL all mean the same thing: fall back to that skill's normal verification, silently and
+without complaint — a receipt is an optimization a skill can always live without, never a
+requirement it depends on.
+
+The fast path still performs tracker status, branch policy, §4's gates, and normal delivery safety
+in full; it compresses **ceremony and duplicate reads**, never the checks themselves. Each phase
+still answers its own question — implement proves acceptance, review looks for what implement's own
+proof can't see (missed defects, contradictory wording, unintended edits), patch resolves what
+review finds, done handles delivery and freshness — the receipt lets a later phase skip *re-proving*
+an earlier one's answer, not skip asking its own question.
+
 - Pure domain contracts, deterministic mocks and issue-sized scenario additions may
   proceed unattended when the issue fully specifies their behavior.
 - If an SDK's current documentation contradicts the issue, stop with the exact
@@ -242,8 +283,8 @@ no way for a stale row to linger.
 
 - **Read the tracker:** `gh issue list --state open --json number,title,labels,milestone,url` (one label: `gh issue list --state open --label "<label>" --json number,title,labels,milestone,url`)
 - **Read one issue:** `gh issue view "<n>" --json number,title,state,url,labels,milestone,body`
-- **Write a routing value:** `gh issue edit "<n>" --remove-label "status:ready,status:in-progress,status:in-review,status:blocked,status:needs-decision" --add-label "<status:label>"` — clears the other status
-  labels and sets this one, in a single call. Non-status labels: `gh issue edit "<n>" --add-label "<label>"` ·
+- **Write a routing value:** `gh issue edit "<n>" --remove-label "status:ready,status:in-progress,status:in-review,status:blocked,status:needs-decision" && gh issue edit "<n>" --add-label "<status:label>"` — clears the status set,
+  then sets this one in an explicitly ordered second call. Non-status labels: `gh issue edit "<n>" --add-label "<label>"` ·
   `gh issue edit "<n>" --remove-label "<label>"`
 - **Bulk writes:** an ordinary loop, one call per issue. These are REST calls against the
   5,000/hr core pool, not GraphQL points, so there is nothing to batch around.
@@ -267,8 +308,9 @@ that isn't in the §1 table.
 ## §8 Commit & PR conventions
 
 - **Conventional Commit** (`feat(scope)` / `fix` / `docs` / `chore` / `test`), scoped to the area;
-  body names the story. Use the harness's standard identity if it supplies one;
-  otherwise omit a co-author trailer rather than inventing an identity.
+  body names the story. Include `Co-Authored-By` only when the active runtime explicitly supplies
+  a truthful identity for this work. Otherwise omit it. Never infer an identity from repo config,
+  the harness/product name, a model name, or a historical commit.
 - **`git add <explicit paths>` — never `-A` / `.`**. Never `--no-verify`; never amend; never
   **force**-push.
 - **PR:** base `main`, a "what shipped + which findings were actioned" narrative as the body,
@@ -278,7 +320,9 @@ that isn't in the §1 table.
   🤖 Generated with [Codex CLI](https://developers.openai.com/codex/cli)
   ```
 - The `Closes/Fixes/Resolves #N` keyword fires **anywhere** in the body regardless of surrounding
-  prose — writing "`Closes #844` is NOT set" still closes #844. When carving one item out of a
+  prose — writing "Closes #844 is NOT set" still closes #844 — **except inside a code span or code
+  block, which suppresses it entirely.** Never backtick the token when the close is wanted, and
+  never leave it bare next to a number that shouldn't close. When carving one item out of a
   multi-item umbrella issue, never put that token next to the umbrella's number at all, not even to
   deny it — write "part of #844" instead.
 - Post a one-line issue comment linking the PR; the narrative lives in the PR body.
