@@ -73,9 +73,6 @@ importers:
       '@release-relay/core':
         specifier: workspace:*
         version: link:../core
-      '@release-relay/github-integration':
-        specifier: workspace:*
-        version: link:../github-integration
     devDependencies:
       '@types/node':
         specifier: 24.13.3
