@@ -29,7 +29,7 @@ Node.js 24 or newer and pnpm 10 are required.
 - `packages/coverage-oracle` validates reviewed manifests and normalized Breakscope reports, then compares them offline.
 - `scenarios/` contains reviewed atomic, composed, negative-control, and path-disposition source shapes plus synthetic oracle/report examples.
 - `docs/spec.md` is the product source of truth.
-- `docs/architecture.md` defines the intended package boundaries before they exist.
+- `docs/architecture.md` defines the implemented package boundaries and dependency direction.
 - `docs/api-coverage.md` defines useful API-usage coverage.
 - `docs/oracle.md` defines reviewed Breakscope expectations.
 - `docs/security.md` defines credentials and external-write rules.
