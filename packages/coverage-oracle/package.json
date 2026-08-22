@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node test-runner.mjs"
+    "test": "node test-runner.mjs"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
