@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SponsorTier } from "@release-relay/core";
+import { Stripe } from "stripe";
 import {
   createStripeBilling,
+  createStripeBillingFromClient,
   type StripeBillingApi,
   type StripeCheckoutSessionRecord,
   type StripePortalSessionRecord,
@@ -293,4 +295,73 @@ test("an ambiguous connection timeout fails safely as unavailable", async () => 
     operationId: "sync-1",
     errorClass: "unavailable"
   });
+});
+
+test("an active product catalog spanning more than one page is refused, not resolved against a truncated page", async () => {
+  const client = new Stripe("sk_test_fixture_key");
+  let createdProduct = false;
+  client.products = {
+    list: async () => ({ data: [], has_more: true }),
+    create: async () => {
+      createdProduct = true;
+      throw new Error("products.create must not run against a truncated catalog");
+    }
+  } as unknown as typeof client.products;
+  const billing = createStripeBillingFromClient(client, scope);
+  const result = await billing.syncTier({ operationId: "sync-1", tier: tier() });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "conflict"
+  });
+  assert.equal(createdProduct, false);
+});
+
+test("a matching tier product on the first page is still refused when more pages exist", async () => {
+  const client = new Stripe("sk_test_fixture_key");
+  let createdProduct = false;
+  client.products = {
+    list: async () => ({
+      data: [{ id: "prod_1", metadata: { tierId: "supporter" } }],
+      has_more: true
+    }),
+    create: async () => {
+      createdProduct = true;
+      throw new Error("products.create must not run against a truncated catalog");
+    }
+  } as unknown as typeof client.products;
+  const billing = createStripeBillingFromClient(client, scope);
+  const result = await billing.syncTier({ operationId: "sync-1", tier: tier() });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "conflict"
+  });
+  assert.equal(createdProduct, false);
+});
+
+test("a product's active prices spanning more than one page are refused, not resolved against a truncated page", async () => {
+  const client = new Stripe("sk_test_fixture_key");
+  let createdPrice = false;
+  client.products = {
+    list: async () => ({
+      data: [{ id: "prod_1", metadata: { tierId: "supporter" } }],
+      has_more: false
+    })
+  } as unknown as typeof client.products;
+  client.prices = {
+    list: async () => ({ data: [], has_more: true }),
+    create: async () => {
+      createdPrice = true;
+      throw new Error("prices.create must not run against a truncated price page");
+    }
+  } as unknown as typeof client.prices;
+  const billing = createStripeBillingFromClient(client, scope);
+  const result = await billing.syncTier({ operationId: "sync-1", tier: tier() });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "conflict"
+  });
+  assert.equal(createdPrice, false);
 });
