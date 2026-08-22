@@ -525,8 +525,6 @@ export function createGitHubPublisher(
       const promise = runResult(publication.operationId, async () => {
         validateConfirmedPublication(publication);
 
-        await currentAuthorization();
-
         const previous = operations.get(publication.operationId);
         if (previous !== undefined) {
           if (previous.previewHash !== publication.previewHash) {

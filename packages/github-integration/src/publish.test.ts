@@ -249,7 +249,24 @@ test("rechecks access immediately before creating and deduplicates retries", asy
     }
   } satisfies OperationResult<PublishedRelease>);
   assert.equal(api.createCalls, 1);
-  assert.deepEqual(api.calls, ["auth", "auth", "release", "auth", "create", "auth"]);
+  assert.deepEqual(api.calls, ["auth", "release", "auth", "create"]);
+});
+
+test("reads the repository exactly once for a successful publish", async () => {
+  const now = { value: new Date("2026-08-18T23:00:00.000Z") };
+  const api = new FakeWriteApi();
+  const { publisher, preview, confirmation } = await prepared(api, now);
+  const request = { ...preview, confirmation };
+
+  assert.deepEqual(await publisher.publishRelease(request), {
+    status: "completed",
+    operationId: "publish-1",
+    value: {
+      tag: "v1.2.3",
+      url: "https://github.com/example/project/releases/tag/v1.2.3"
+    }
+  } satisfies OperationResult<PublishedRelease>);
+  assert.equal(api.calls.filter((call) => call === "auth").length, 2);
 });
 
 test("reconciles a timeout after GitHub created the release", async () => {
