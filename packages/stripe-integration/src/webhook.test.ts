@@ -213,6 +213,29 @@ test("an out-of-order older event never regresses a newer projection", async () 
   assert.equal(result.value.sourceEventId, "evt_2");
 });
 
+test("distinct events created in the same wall-clock second apply in delivery order", async () => {
+  const projector = createStripeWebhookProjector();
+  const activation = await projector.project({
+    eventId: "evt_1",
+    eventCreatedAt: "2027-01-01T00:00:00.000Z",
+    customerId: "cus_1",
+    membershipState: "active",
+    payloadHash: "hash_1"
+  });
+  const cancel = await projector.project({
+    eventId: "evt_2",
+    eventCreatedAt: "2027-01-01T00:00:00.000Z",
+    customerId: "cus_1",
+    membershipState: "canceled",
+    payloadHash: "hash_2"
+  });
+  assert.equal(activation.status, "completed");
+  assert.equal(cancel.status, "completed");
+  if (activation.status !== "completed" || cancel.status !== "completed") return;
+  assert.equal(cancel.value.state, "canceled");
+  assert.equal(cancel.value.sourceEventId, "evt_2");
+});
+
 test("projections are isolated per customer", async () => {
   const projector = createStripeWebhookProjector();
   const first = await projector.project({
