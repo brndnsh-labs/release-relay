@@ -111,7 +111,7 @@ function stringValue(record: Record<string, unknown>, key: string): string | und
 }
 
 function numberValue(record: Record<string, unknown>, key: string): number | undefined {
-  return typeof record[key] === "number" && Number.isInteger(record[key])
+  return typeof record[key] === "number" && Number.isSafeInteger(record[key])
     ? record[key]
     : undefined;
 }

@@ -25,6 +25,7 @@ interface ReleaseParams {
 class FakeWriteApi implements GitHubWriteApi {
   readonly calls: string[] = [];
   canPublish = true;
+  repositoryOverrides: Record<string, unknown> | undefined;
   release: ReleaseParams | undefined;
   createCalls = 0;
   timeoutAfterWrite = false;
@@ -41,7 +42,8 @@ class FakeWriteApi implements GitHubWriteApi {
           admin: false,
           push: this.canPublish,
           maintain: false
-        }
+        },
+        ...this.repositoryOverrides
       }
     });
   }
@@ -332,6 +334,20 @@ test("maps revoked provider access to a safe refusal", async () => {
   if (authorization.status === "completed") {
     assert.equal(authorization.value.canPublish, false);
   }
+});
+
+test("rejects authorization responses whose repository id is not a safe integer", async () => {
+  const api = new FakeWriteApi();
+  api.repositoryOverrides = { id: Number.MAX_SAFE_INTEGER + 1 };
+  const publisher = createGitHubPublisher(api, { repository });
+  assert.deepEqual(
+    await publisher.getAuthorization({ operationId: "auth-1", repository }),
+    {
+      status: "failed",
+      operationId: "auth-1",
+      errorClass: "invalid-input"
+    }
+  );
 });
 
 test("treats repository scope case-insensitively for getAuthorization and previewRelease", async () => {
