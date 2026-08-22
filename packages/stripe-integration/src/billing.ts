@@ -81,9 +81,14 @@ type FailureStatus = "refused" | "failed";
 class AdapterError extends Error {
   constructor(
     readonly status: FailureStatus,
-    readonly errorClass: SafeErrorClass
+    readonly errorClass: SafeErrorClass,
+    readonly detail?: string
   ) {
-    super("Stripe billing adapter rejected the operation");
+    super(
+      detail === undefined
+        ? "Stripe billing adapter rejected the operation"
+        : `Stripe billing adapter rejected the operation: ${detail}`
+    );
   }
 }
 
@@ -290,6 +295,13 @@ function apiFromClient(client: Stripe): StripeBillingApi {
   return {
     listProducts: async ({ limit }) => {
       const result = await client.products.list({ limit, active: true });
+      if (result.has_more) {
+        throw new AdapterError(
+          "refused",
+          "conflict",
+          "active product catalog exceeds a single page; refusing to resolve against truncated results"
+        );
+      }
       return result.data.map((product) => ({
         id: product.id,
         metadata: product.metadata
@@ -304,6 +316,13 @@ function apiFromClient(client: Stripe): StripeBillingApi {
     },
     listPrices: async ({ product }) => {
       const result = await client.prices.list({ product, active: true, limit: 100 });
+      if (result.has_more) {
+        throw new AdapterError(
+          "refused",
+          "conflict",
+          "active prices for the product exceed a single page; refusing to resolve against truncated results"
+        );
+      }
       return result.data.map((price) => ({
         id: price.id,
         unitAmount: price.unit_amount ?? -1,
