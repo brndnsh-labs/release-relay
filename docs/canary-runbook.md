@@ -99,7 +99,7 @@ Stop here. Ask Brandon to approve the exact repository-selection action and firs
 3. Confirm the signed `installation_repositories` webhook was delivered and the ordinary `installation.sync` path discovered the repository.
 4. Await one normal repository-worker archive scan of the pinned Release Relay SHA. Do not add a per-file read, create a synthetic push, or replay unrelated jobs to force it.
 5. Export only the reviewed source-free snapshot. Record the Release Relay SHA, deployed Breakscope SHA, ruleset, scan outcome, file dispositions, and safe observation metadata. Retain no archive, source, snippets, credentials, signed URLs, prompts, raw model output, or database dump.
-6. Keep the tool and manifest checkout on current `main`, then create a separate clean, detached source checkout at the reviewed revision. Do not copy the manifest or tooling into that source checkout. Construct and validate the normalized v2 report against that explicit source root. Do not run `coverage-oracle compare` until its v2 support ships in Release Relay #52; the current CLI rejects v2 rather than hand-attributing evidence to its legacy v1 shape:
+6. Keep the tool and manifest checkout on current `main`, then create a separate clean, detached source checkout at the reviewed revision. Do not copy the manifest or tooling into that source checkout. Construct and validate the normalized v2 report against that explicit source root:
 
    ```sh
    source_parent="$(mktemp -d)"
@@ -109,6 +109,7 @@ Stop here. Ask Brandon to approve the exact repository-selection action and firs
    coverage-oracle validate scenarios/oracle-v2.example.json --source-root "$source_root" --check-revision
    coverage-oracle normalize scenarios/oracle-v2.example.json <breakscope-snapshot.json> --breakscope-revision <full-sha> --source-root "$source_root" --output <normalized-report.json>
    coverage-oracle validate-report <normalized-report.json>
+   coverage-oracle compare scenarios/oracle-v2.example.json <normalized-report.json> --source-root "$source_root"
    git worktree remove "$source_root"
    rmdir "$source_parent"
    ```
