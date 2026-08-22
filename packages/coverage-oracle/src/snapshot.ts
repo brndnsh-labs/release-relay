@@ -332,7 +332,6 @@ export function validateSnapshot(input: unknown): SnapshotValidationResult {
       } else {
         confidenceVal = raw.confidence;
       }
-      // anchor hygiene for file? snapshot observations don't have anchor, but we check file anchor hygiene via snapshot? No.
       if (
         typeof raw.file === "string" &&
         typeof raw.provider === "string" &&
