@@ -49,10 +49,15 @@ export type MembershipTransitionOutcome =
   | { kind: "duplicate"; projection: MembershipProjection }
   | { kind: "stale"; projection: MembershipProjection };
 
-// Pure reducer shared by every webhook boundary: exact-duplicate delivery and
-// an event older than the current projection both leave state untouched, so
-// out-of-order or replayed delivery can never regress a newer authoritative
-// state.
+// Pure reducer shared by every webhook boundary: an exact-duplicate delivery
+// (same event id) and an event strictly older than the current projection both
+// leave state untouched, so replayed or out-of-order delivery can never regress
+// a newer authoritative state. Stripe's event.created carries whole-second
+// precision, so distinct events created within the same wall-clock second tie
+// on timestamp; those ties resolve by delivery order — each distinct event
+// applies in the order it arrives, even when its created second matches the
+// current projection's — while identical-id redelivery remains a duplicate
+// no-op.
 export function projectMembership(
   current: MembershipProjection | undefined,
   event: VerifiedWebhookEvent
@@ -62,7 +67,7 @@ export function projectMembership(
   }
   if (
     current !== undefined &&
-    Date.parse(event.eventCreatedAt) <= Date.parse(current.sourceEventCreatedAt)
+    Date.parse(event.eventCreatedAt) < Date.parse(current.sourceEventCreatedAt)
   ) {
     return { kind: "stale", projection: current };
   }

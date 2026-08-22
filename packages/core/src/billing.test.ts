@@ -138,6 +138,24 @@ test("projectMembership preserves the newest authoritative state against a stale
   assert.deepEqual(outcome.projection, current);
 });
 
+test("projectMembership applies distinct same-second events in delivery order", () => {
+  const activation = projectMembership(undefined, event({ eventId: "evt_1" }));
+  assert.equal(activation.kind, "applied");
+  if (activation.kind !== "applied") return;
+  const cancel = projectMembership(
+    activation.projection,
+    event({ eventId: "evt_2", membershipState: "canceled" })
+  );
+  assert.equal(cancel.kind, "applied");
+  if (cancel.kind !== "applied") return;
+  assert.deepEqual(cancel.projection, {
+    customerId: "cus_1",
+    state: "canceled",
+    sourceEventId: "evt_2",
+    sourceEventCreatedAt: "2027-01-01T00:00:00.000Z"
+  });
+});
+
 test("projectMembership carries an unknown state through rather than inventing an optimistic one", () => {
   const outcome = projectMembership(
     undefined,
