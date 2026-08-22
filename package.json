@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && pnpm --filter @release-relay/core build && pnpm --filter @release-relay/github-integration build && pnpm --filter @release-relay/openai-integration build && pnpm --filter @release-relay/anthropic-integration build && pnpm --filter @release-relay/stripe-integration build && pnpm --filter @release-relay/mock-runtime build && pnpm --filter @release-relay/coverage-oracle build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "check": "pnpm format:check && pnpm lint && pnpm --filter @release-relay/core build && pnpm typecheck && pnpm test",
     "cycle:check": "cycle check",
     "format": "biome format --write .",
     "format:check": "biome format .",
