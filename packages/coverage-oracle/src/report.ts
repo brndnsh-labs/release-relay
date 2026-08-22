@@ -203,31 +203,6 @@ function validateFiles(input: Record<string, unknown>, errors: string[]): Report
   return validated;
 }
 
-function validateObservationCommon(
-  where: string,
-  observation: Record<string, unknown>,
-  errors: string[]
-): void {
-  requireNonEmptyString(where, observation.file, "file", errors);
-
-  if (
-    typeof observation.provider !== "string" ||
-    !(providers as readonly string[]).includes(observation.provider as string)
-  ) {
-    errors.push(`${where}.provider must be one of ${providers.join(", ")}`);
-  }
-
-  requireNonEmptyString(where, observation.identifier, "identifier", errors);
-  requireNonEmptyString(where, observation.evidenceKind, "evidenceKind", errors);
-
-  if (
-    typeof observation.confidence !== "string" ||
-    !(confidenceBands as readonly string[]).includes(observation.confidence as string)
-  ) {
-    errors.push(`${where}.confidence must be one of ${confidenceBands.join(", ")}`);
-  }
-}
-
 function validateObservations(
   input: Record<string, unknown>,
   version: 1,
