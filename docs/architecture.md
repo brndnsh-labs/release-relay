@@ -2,7 +2,7 @@
 
 ## Current state
 
-The deterministic product contracts, mock runtime, provider adapters, billing flows, coverage scenarios, and coverage-oracle comparator are implemented (see `docs/roadmap.md` and `CLAUDE.md`). The package layout below is the implemented topology; a new package still requires a story that needs it and an oracle update if it adds detectable API usage. The thin-bootstrap wording is retained in git history.
+The deterministic product contracts, mock runtime, provider adapters, billing flows, coverage scenarios, and coverage-oracle comparator are implemented (see `docs/roadmap.md` and `CLAUDE.md`). The `packages/*` layer below is the implemented topology; `apps/*` is target topology. A new package still requires a story that needs it and an oracle update if it adds detectable API usage. The thin-bootstrap wording is retained in git history.
 
 ## Target topology
 
@@ -128,7 +128,7 @@ Draft creation is reversible but still may send content outside the process. Git
 
 Logs contain operation IDs, provider names, safe resource IDs, states, durations, and error classes. They do not contain credentials, complete prompts, GitHub bodies, webhook payloads, Checkout URLs, or raw provider errors.
 
-Mock mode exposes its operation ledger in tests and development UI so acceptance criteria can prove which operations would have happened.
+Mock mode exposes its operation ledger to tests so acceptance criteria can prove which operations would have happened.
 
 ## Evolution rules
 
