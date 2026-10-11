@@ -140,6 +140,44 @@ test("an undocumented event type is acknowledged as ignored without producing a 
   });
 });
 
+test("a validly signed envelope with a missing event id is rejected safely", () => {
+  const verifier = createStripeWebhookVerifier(stripe, webhookSecret);
+  const parsed = JSON.parse(subscriptionEventPayload({}));
+  delete parsed.id;
+  const payload = JSON.stringify(parsed);
+  assert.deepEqual(verifier.parse(payload, signedHeader(payload)), {
+    kind: "invalid-signature"
+  });
+});
+
+test("a validly signed envelope with an empty event id is rejected safely", () => {
+  const verifier = createStripeWebhookVerifier(stripe, webhookSecret);
+  const payload = subscriptionEventPayload({ id: "   " });
+  assert.deepEqual(verifier.parse(payload, signedHeader(payload)), {
+    kind: "invalid-signature"
+  });
+});
+
+test("a validly signed envelope with a missing created timestamp is rejected safely", () => {
+  const verifier = createStripeWebhookVerifier(stripe, webhookSecret);
+  const parsed = JSON.parse(subscriptionEventPayload({}));
+  delete parsed.created;
+  const payload = JSON.stringify(parsed);
+  assert.deepEqual(verifier.parse(payload, signedHeader(payload)), {
+    kind: "invalid-signature"
+  });
+});
+
+test("a validly signed envelope with a non-numeric created timestamp is rejected safely", () => {
+  const verifier = createStripeWebhookVerifier(stripe, webhookSecret);
+  const parsed = JSON.parse(subscriptionEventPayload({}));
+  parsed.created = "not-a-number";
+  const payload = JSON.stringify(parsed);
+  assert.deepEqual(verifier.parse(payload, signedHeader(payload)), {
+    kind: "invalid-signature"
+  });
+});
+
 test("mapSubscriptionStatus collapses Stripe's status vocabulary without granting access on ambiguity", () => {
   assert.equal(mapSubscriptionStatus("active"), "active");
   assert.equal(mapSubscriptionStatus("trialing"), "active");
