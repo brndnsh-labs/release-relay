@@ -71,7 +71,7 @@ Success means Release Relay can present current supporter status without storing
 
 ### 5. Send a sponsor update
 
-The maintainer derives a supporter-facing update from an approved release draft, reviews it, and records its intended audience. Actual outbound email or messaging is outside the initial roadmap; the MVP produces an exportable update and audit record.
+The maintainer derives a supporter-facing update from an approved release draft, reviews it, and records its intended audience. Actual outbound email or messaging is outside the initial roadmap; the MVP produces an exportable update and audit record. *(Designed, not implemented: no export exists in the completed M1–M5 milestones.)*
 
 ## Product principles
 
