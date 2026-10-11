@@ -124,8 +124,16 @@ export async function checkRevisionAnchors(
     );
   }
 
+  const contentCache = new Map<
+    string,
+    { ok: true; content: string } | { ok: false; error: string }
+  >();
   for (const ref of collectManifestAnchors(manifest)) {
-    const read = readFileAtRevision(revision, ref.file, rootDir);
+    let read = contentCache.get(ref.file);
+    if (read === undefined) {
+      read = readFileAtRevision(revision, ref.file, rootDir);
+      contentCache.set(ref.file, read);
+    }
     if (!read.ok) {
       errors.push(
         `${ref.owner}: source file ${ref.file} not found in revision ${revision}`
