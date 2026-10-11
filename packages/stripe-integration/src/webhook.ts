@@ -26,6 +26,10 @@ function isPermittedEventType(type: string): type is PermittedEventType {
   return (permittedEventTypes as readonly string[]).includes(type);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // Stripe's subscription vocabulary collapsed into Release Relay's smaller
 // membership states. Trialing counts as active access; incomplete and paused
 // fail closed to pending/past_due rather than granting access outright.
@@ -87,11 +91,17 @@ export function createStripeWebhookVerifier(
       if (!isPermittedEventType(event.type)) {
         return { kind: "ignored", eventId: event.id, eventType: event.type };
       }
-      const rawObject = event.data.object as unknown;
-      if (typeof rawObject !== "object" || rawObject === null) {
+      if (typeof event.id !== "string" || event.id.trim() === "") {
         return { kind: "invalid-signature" };
       }
-      const rawRecord = rawObject as Record<string, unknown>;
+      if (typeof event.created !== "number" || !Number.isFinite(event.created)) {
+        return { kind: "invalid-signature" };
+      }
+      const rawObject = event.data.object as unknown;
+      if (!isRecord(rawObject)) {
+        return { kind: "invalid-signature" };
+      }
+      const rawRecord = rawObject;
       const customerRaw = rawRecord.customer;
       let customerId: string | undefined;
       if (typeof customerRaw === "string" && customerRaw.trim() !== "") {
