@@ -361,7 +361,7 @@ export function validateManifest(input: unknown): ValidationResult {
               `${expectationWhere}.locationAnchor is only allowed in manifest version 2`
             );
           }
-        } else if (LOCATED_OUTCOMES.includes(validatedOutcome as Outcome)) {
+        } else if (LOCATED_OUTCOMES.includes(validatedOutcome)) {
           if (rawExpectation.id === undefined) {
             errors.push(
               `${expectationWhere}.id is required for outcome ${outcome} in manifest version 2`
@@ -465,22 +465,14 @@ export function validateManifest(input: unknown): ValidationResult {
         }
 
         if (errors.length !== expErrorsBefore) continue;
-        // Build validated expectation from captured locals (or raw if capture missed but validation passed)
+        // Build validated expectation from captured locals
         const exp: OracleExpectation = { outcome: validatedOutcome };
         if (validatedProvider !== undefined) exp.provider = validatedProvider;
         if (validatedIdentifier !== undefined) exp.identifier = validatedIdentifier;
-        else if (typeof rawExpectation.identifier === "string")
-          exp.identifier = rawExpectation.identifier;
         if (validatedEvidenceKind !== undefined)
           exp.evidenceKind = validatedEvidenceKind;
-        else if (typeof rawExpectation.evidenceKind === "string")
-          exp.evidenceKind = rawExpectation.evidenceKind;
         if (validatedConfidence !== undefined) exp.confidence = validatedConfidence;
-        else if (typeof rawExpectation.confidence === "string")
-          exp.confidence = rawExpectation.confidence as ConfidenceBand;
         if (validatedReason !== undefined) exp.reason = validatedReason;
-        else if (typeof rawExpectation.reason === "string")
-          exp.reason = rawExpectation.reason;
         if (validatedExpectationId !== undefined) exp.id = validatedExpectationId;
         if (validatedLocationAnchor !== undefined)
           exp.locationAnchor = validatedLocationAnchor;
