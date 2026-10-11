@@ -365,3 +365,82 @@ test("a product's active prices spanning more than one page are refused, not res
   });
   assert.equal(createdPrice, false);
 });
+
+test("a product whose only active price is tiered is refused, not shadowed with a flat price", async () => {
+  const client = new Stripe("sk_test_fixture_key");
+  let createdPrice = false;
+  client.products = {
+    list: async () => ({
+      data: [{ id: "prod_1", metadata: { tierId: "supporter" } }],
+      has_more: false
+    })
+  } as unknown as typeof client.products;
+  client.prices = {
+    list: async () => ({
+      data: [{ id: "price_tiered", unit_amount: null, currency: "usd", active: true }],
+      has_more: false
+    }),
+    create: async () => {
+      createdPrice = true;
+      throw new Error("prices.create must not run for an unrepresentable tiered price");
+    }
+  } as unknown as typeof client.prices;
+  const billing = createStripeBillingFromClient(client, scope);
+  const result = await billing.syncTier({ operationId: "sync-1", tier: tier() });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "conflict"
+  });
+  assert.equal(createdPrice, false);
+});
+
+test("a non-integer tier price is refused as invalid-input with no provider mutation", async () => {
+  const { api, state } = fakeApi();
+  const billing = createStripeBilling(api, scope);
+  const result = await billing.syncTier({
+    operationId: "sync-1",
+    tier: tier({ price: { minorUnits: 19.99, currency: "usd" } })
+  });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "invalid-input"
+  });
+  assert.equal(state.createProductCalls, 0);
+  assert.equal(state.createPriceCalls, 0);
+});
+
+test("a negative tier price is refused as invalid-input with no provider mutation", async () => {
+  const { api, state } = fakeApi();
+  const billing = createStripeBilling(api, scope);
+  const result = await billing.syncTier({
+    operationId: "sync-1",
+    tier: tier({ price: { minorUnits: -500, currency: "usd" } })
+  });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "invalid-input"
+  });
+  assert.equal(state.createProductCalls, 0);
+  assert.equal(state.createPriceCalls, 0);
+});
+
+test("an unsupported-currency tier price is refused as invalid-input with no provider mutation", async () => {
+  const { api, state } = fakeApi();
+  const billing = createStripeBilling(api, scope);
+  const result = await billing.syncTier({
+    operationId: "sync-1",
+    tier: tier({
+      price: { minorUnits: 500, currency: "xyz" } as unknown as SponsorTier["price"]
+    })
+  });
+  assert.deepEqual(result, {
+    status: "refused",
+    operationId: "sync-1",
+    errorClass: "invalid-input"
+  });
+  assert.equal(state.createProductCalls, 0);
+  assert.equal(state.createPriceCalls, 0);
+});

@@ -10,6 +10,7 @@ import type {
   SponsorTier,
   SyncedSponsorTier
 } from "@release-relay/core";
+import { createMoney } from "@release-relay/core";
 
 const STRIPE_API_BASE_HOST = "api.stripe.com";
 const RECURRING_INTERVAL = "month";
@@ -239,6 +240,11 @@ export function createStripeBilling(
       tierSync.call(input.operationId, JSON.stringify(input.tier), async () => {
         requiredText(input.tier.id);
         requiredText(input.tier.name);
+        const money = createMoney(
+          input.tier.price.minorUnits,
+          input.tier.price.currency
+        );
+        if (!money.ok) throw new AdapterError("refused", "invalid-input");
         const product = await resolveProduct(input.tier);
         const price = await resolvePrice(product, input.tier.price);
         const synced: SyncedSponsorTier = {
@@ -323,12 +329,21 @@ function apiFromClient(client: Stripe): StripeBillingApi {
           "active prices for the product exceed a single page; refusing to resolve against truncated results"
         );
       }
-      return result.data.map((price) => ({
-        id: price.id,
-        unitAmount: price.unit_amount ?? -1,
-        currency: price.currency,
-        active: price.active
-      }));
+      return result.data.map((price) => {
+        if (price.unit_amount === null || price.unit_amount === undefined) {
+          throw new AdapterError(
+            "refused",
+            "conflict",
+            "active price without a flat unit_amount; refusing to resolve against an unrepresentable record"
+          );
+        }
+        return {
+          id: price.id,
+          unitAmount: price.unit_amount,
+          currency: price.currency,
+          active: price.active
+        };
+      });
     },
     createPrice: async (params, options) => {
       const price = await client.prices.create(
