@@ -539,6 +539,7 @@ export function createGitHubPublisher(
 
         const existing = await reconcile(publication);
         if (existing.kind === "matching") {
+          ensureAuthorized(await currentAuthorization(), publication);
           operations.set(publication.operationId, {
             previewHash: publication.previewHash,
             value: existing.release.value

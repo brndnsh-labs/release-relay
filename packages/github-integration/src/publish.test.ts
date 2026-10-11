@@ -226,6 +226,48 @@ test("returns a known duplicate after expiry without requiring write access", as
   assert.equal(api.createCalls, 1);
 });
 
+test("refuses a matching-release duplicate when live authorization was revoked", async () => {
+  const now = { value: new Date("2026-08-18T23:00:00.000Z") };
+  const api = new FakeWriteApi();
+  const { publisher, preview, confirmation } = await prepared(api, now);
+  api.release = {
+    tag_name: "v1.2.3",
+    name: "Release title",
+    body: "Release body",
+    draft: false,
+    prerelease: true
+  };
+  api.canPublish = false;
+  assert.deepEqual(await publisher.publishRelease({ ...preview, confirmation }), {
+    status: "refused",
+    operationId: "publish-1",
+    errorClass: "authorization"
+  });
+  assert.equal(api.createCalls, 0);
+});
+
+test("returns duplicate for a matching release when still authorized", async () => {
+  const now = { value: new Date("2026-08-18T23:00:00.000Z") };
+  const api = new FakeWriteApi();
+  const { publisher, preview, confirmation } = await prepared(api, now);
+  api.release = {
+    tag_name: "v1.2.3",
+    name: "Release title",
+    body: "Release body",
+    draft: false,
+    prerelease: true
+  };
+  assert.deepEqual(await publisher.publishRelease({ ...preview, confirmation }), {
+    status: "duplicate",
+    operationId: "publish-1",
+    value: {
+      tag: "v1.2.3",
+      url: "https://github.com/example/project/releases/tag/v1.2.3"
+    }
+  } satisfies OperationResult<PublishedRelease>);
+  assert.equal(api.createCalls, 0);
+});
+
 test("rechecks access immediately before creating and deduplicates retries", async () => {
   const now = { value: new Date("2026-08-18T23:00:00.000Z") };
   const api = new FakeWriteApi();
