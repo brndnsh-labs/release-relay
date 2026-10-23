@@ -17,7 +17,7 @@
       {
         "name": "status:ready",
         "meaning": "scoped, dependency-clear and pickable",
-        "action": "`/next` ranks and picks it; `/implement` or `/cycle` builds it"
+        "action": "`/next` ranks and picks it; `/cycle` builds it"
       },
       {
         "name": "status:in-progress",
