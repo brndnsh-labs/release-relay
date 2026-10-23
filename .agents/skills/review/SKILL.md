@@ -1,48 +1,36 @@
 ---
 name: review
-description: Review the current uncommitted release-relay diff. Inspects git status + diff --stat to route reviewers — an inline correctness pass for any non-trivial change, plus `/security-review` whenever the diff touches an always-brake surface (Adding or running a live OpenAI, Anthropic, GitHub, or Stripe call, because it sends data or changes remote state, Adding, exposing, rotating, or changing the handling of credentials, tokens, cookies, webhook secrets, or private keys, Creating or changing a remote GitHub release, Stripe resource, charge, subscription, webhook endpoint, or other external object, Weakening explicit confirmation, current-authorization rechecks, signature validation, idempotency, request bounds, fixed provider hosts, or safe logging, Changing authentication, authorization, payment-state, data-retention, persistent schema, migration, or destructive-data semantics, Changing reviewed oracle truth merely to match current Breakscope output, or generating committed expectations from detector output, Deploying the application or creating hosted infrastructure; no environment is authorized by this repository), and optionally a second-model angle on a meaty diff. Presents the reviewer plan before running. Does NOT change Status — review happens within status:in-progress. Use after /implement, before /done.
+description: Independently review the current uncommitted release-relay diff (or a named branch/PR) — correctness, plus whether it does what the issue asked — adding `/security-review` when it touches an always-brake surface (Adding or running a live OpenAI, Anthropic, GitHub, or Stripe call, because it sends data or changes remote state, Adding, exposing, rotating, or changing the handling of credentials, tokens, cookies, webhook secrets, or private keys, Creating or changing a remote GitHub release, Stripe resource, charge, subscription, webhook endpoint, or other external object, Weakening explicit confirmation, current-authorization rechecks, signature validation, idempotency, request bounds, fixed provider hosts, or safe logging, Changing authentication, authorization, payment-state, data-retention, persistent schema, migration, or destructive-data semantics, Changing reviewed oracle truth merely to match current Breakscope output, or generating committed expectations from detector output, Deploying the application or creating hosted infrastructure; no environment is authorized by this repository). Reports findings with evidence; fixing them is the caller's job. Used by /cycle, or on its own for any diff.
 ---
-<!-- cycle:rendered template=skills/review.md.tmpl hash=b24af52c73fb — managed by the-cycle; edit the template, not this file -->
+<!-- cycle:rendered template=skills/review.md.tmpl hash=8054ee5adf25 — managed by the-cycle; edit the template, not this file -->
 
-# /review — review the uncommitted tree
+# /review — fresh eyes on a diff
 
-Goal: pick the right reviewers for what changed, run them, present consolidated findings.
+**Shared rules in `.agents/skills/DOCTRINE.md` — read it if not already in context** (§3 says how
+much review a change deserves; §5 says when to stop).
 
-**Shared rules in `.agents/skills/DOCTRINE.md` — read it if not already in context.** This skill is
-the detailed expansion of §3 (Reviewers) and routes on §5's always-brake surfaces. The routing
-table below is review's own, more-specific version of §3. **Review does not change Status** — the
-story stays `status:in-progress` through review and patch.
+**Run it in a fresh-context subagent** when the caller built the diff: hand it the issue number
+and the diff, not your reasoning. The value is a reviewer who doesn't share the builder's
+assumptions. If a subagent can't be launched at all, don't stall: review in-thread, re-reading
+the issue and the diff from scratch, and say that's what happened.
 
-## Workflow
+## What to check
 
-1. **Check for a fast-path receipt** (§5). If `/implement`'s `## Verification receipt` is in
-   context, recompute its diff fingerprint over the same file list. A match (and every gate in it
-   still PASS) means the issue read and the file list already stand proven — skip straight to step
-   2's routing with that instead of re-surveying. A stale fingerprint or no receipt: proceed
-   normally below, without comment.
-2. **Survey the diff.** `git status` + `git diff --stat`. If the diff is empty, say so and stop.
-3. **Route reviewers.** Rows are **additive** — union the reviewers and run each once.
-
-   | If the diff touches... | Run |
-   | :- | :- |
-   | Any non-trivial code change | the **inline correctness pass** — the orchestrator reviews the diff itself, across the angles a heavyweight reviewer would cover (logic, edges, error paths, contracts, invariants). Match depth to risk. Tests **alongside** prod code stay supporting cast — review the behavior change; the prod diff is the subject. |
-   | **Adding or running a live OpenAI, Anthropic, GitHub, or Stripe call, because it sends data or changes remote state** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | **Adding, exposing, rotating, or changing the handling of credentials, tokens, cookies, webhook secrets, or private keys** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | **Creating or changing a remote GitHub release, Stripe resource, charge, subscription, webhook endpoint, or other external object** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | **Weakening explicit confirmation, current-authorization rechecks, signature validation, idempotency, request bounds, fixed provider hosts, or safe logging** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | **Changing authentication, authorization, payment-state, data-retention, persistent schema, migration, or destructive-data semantics** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | **Changing reviewed oracle truth merely to match current Breakscope output, or generating committed expectations from detector output** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | **Deploying the application or creating hosted infrastructure; no environment is authorized by this repository** | **`/security-review`** *in addition* — non-optional here (§5). Reason about this flow's specific threat model, not just generic categories. |
-   | A **test-only** diff | the **test-quality lens** (below) — the tests *are* the deliverable. |
-   | A meaty diff built by the default model | optionally a **second-model angle** (below). |
-   | Docs only (`*.md`) and/or config, no application code | the **editorial lens** (below) — never "skipping review." |
-
-   **`/code-review` is human-triggered, not a loop step.** The heavyweight multi-angle cloud review
-   exists, but only Brandon can invoke it — no skill can run it, and a routing table that
-   names it as the baseline just teaches the loop to skip that row. The loop's baseline is the
-   inline pass + the second-model angle; when a diff is large or risky enough to deserve the
-   heavyweight pass, *say so* in the findings ("worth a human `/code-review`") and leave the call
-   to Brandon.
+- **Correctness — the inline correctness pass.** Logic, edge cases, error paths, contracts,
+  invariants. Depth matches risk. Tests beside production code are supporting cast; the behavior
+  change is the subject.
+- **Spec — kept separate.** Read the issue's Acceptance and its comments, and report against them:
+  a criterion missing or half-met, behavior nobody asked for, or a criterion addressed in a way that
+  won't actually satisfy it. Quote the acceptance line, and tag these `[spec]`. No issue in context
+  → say "no spec available"; never reconstruct one from the diff.
+- **Tests that are the deliverable — the test-quality lens.** Do they assert the contract or just
+  restate the implementation? Can each assertion actually fail? A test that enshrines a bug is a
+  finding, however green.
+- **Brake surfaces** (Adding or running a live OpenAI, Anthropic, GitHub, or Stripe call, because it sends data or changes remote state, Adding, exposing, rotating, or changing the handling of credentials, tokens, cookies, webhook secrets, or private keys, Creating or changing a remote GitHub release, Stripe resource, charge, subscription, webhook endpoint, or other external object, Weakening explicit confirmation, current-authorization rechecks, signature validation, idempotency, request bounds, fixed provider hosts, or safe logging, Changing authentication, authorization, payment-state, data-retention, persistent schema, migration, or destructive-data semantics, Changing reviewed oracle truth merely to match current Breakscope output, or generating committed expectations from detector output, Deploying the application or creating hosted infrastructure; no environment is authorized by this repository): also run `/security-review`, reasoning about this flow's
+  threat model, not generic categories.
+- **A big or subtle diff:** a second reviewer on a different model catches same-prior blind spots.
+  The heavyweight `/code-review` is human-triggered — if a diff deserves it, say so and leave the
+  call to Brandon.
 
 No specialized reviewer agents exist yet; all rows currently receive an inline
 correctness pass. The domain column is the brief for that pass and the backlog for
@@ -60,77 +48,16 @@ future focused reviewers.
 | `docs/**`, `CLAUDE.md` | inline | Behavior and planned contracts agree; future claims are not written as shipped capabilities. |
 | anything else | inline general review | Intent, edge cases, error paths, tests and repository conventions. |
 
-   ### Second-model angle (cheap, orthogonal)
+## Reporting
 
-   A reviewer with a **different model than the implementer** shares fewer blind spots — a
-   different prior catches what same-model review lets slide. Spawn a reviewer on the other tier
-   for a meaty diff, alongside the inline pass. Prompt it for correctness bugs *and* anything that
-   "feels off" — the different weighting is the point, so don't over-constrain it. It's cheap; run
-   it freely on a substantial diff.
-
-   ### Test-quality lens
-
-   When the tests *are* the deliverable, review them as the subject, not as supporting cast:
-   - **Coverage gaps** — which behaviors of the unit under test are still unasserted?
-   - **Intent vs implementation** — does the test assert the *contract*, or merely restate what the
-     code currently does? The second kind passes forever and catches nothing.
-   - **Vacuous asserts** — assertions that cannot fail (a tautology, a threshold below the
-     no-op baseline, an assert on a value the test itself just set).
-   - **Brittle verbatim** — snapshots and exact-string matches that will break on an unrelated
-     change and teach everyone to re-bless them without reading.
-   - If a test appears to **codify a bug** — the behavior is wrong but the test enshrines it —
-     **flag it as a finding**; never bless it because it passes.
-
-   ### Editorial lens
-
-   A docs/config-only diff gets read as an editor, not a code reviewer — light, but never skipped:
-   - **Issue fidelity** — does the change actually satisfy the issue's `Acceptance:` line?
-   - **Contradictory wording** — does it conflict with something else this doc/config already says?
-   - **References** — do the section numbers, file paths, and links it points at still resolve?
-   - **Formatting** — table alignment, heading levels, list markers consistent with the rest of the
-     file?
-   - **Unintended edits** — anything touched outside what `Touches:` (or the diff itself) named?
-
-   No specialized reviewer, no automatic gate rerun — this lens is deliberately light because §4's
-   gates already proved the deterministic part.
-
-4. **Present the plan** (a status update, not a gate — §5):
-
-   ```
-   ## Review plan
-   **Diff:** <N files, +<n>/-<m>>
-   **Files:** <key files + scope>
-   **Reviewers:** <those firing> — <why each>
-   ```
-
-5. **Run them immediately** in the same turn — no "Run them?" wait.
-6. **Present consolidated findings,** each with severity (P0/P1/P2) + `file:line` + a **verbatim
-   quote** of the offending line, then a recommendation:
-
-   ```
-   ### Recommendation
-   - ✅ Clean → /done
-   - ⚠️ Mechanical findings → /patch, then /done
-   - ❌ Design-level findings → /implement #<n> with a fix-focused prompt
-   - 🛑 A finding contradicts a project memory note → memory wins by default; surface it
-   ```
-
-7. **Suggest the next step** from the recommendation.
-
-## Safety
-
-- **A finding is a hypothesis with a citation, not a fact.** Before reporting one, read the cited
-  line — grep the *assignment*, not just a textual match. Roughly one in three "X exists at line N"
-  claims is a misread, and a confidently wrong finding costs more than a missed one.
-- **Empty findings is a valid clean result; *missing* findings is a failure.** If a reviewer times
-  out or errors, report that — never fabricate "clean" from an absent answer.
-
-## Edge cases
-
-- **Empty diff:** report; suggest `/next`. Don't run reviewers.
-- **Fast-path receipt present but stale or missing a PASS** (§5): treat it as absent — survey and
-  route normally, without flagging the mismatch as a finding.
-- **Diff mixes story work + unrelated drift:** flag the drift; ask whether to revert before
-  reviewing.
-- **Finding contradicts a memory note** (an architecture rule, an invariant): the memory wins
-  unless Brandon overrides; surface it prominently rather than silently dropping either one.
+- Each finding: an ID (`F1`, `F2`, …), severity (P0 / P1 / P2), `file:line`, a verbatim quote of the
+  line, and what's wrong. **Read the cited line before reporting it** — a confidently wrong finding
+  costs more than a missed one.
+- End with one verdict: **clean**, **fixable** (mechanical findings — fix and re-check), or
+  **needs Brandon** (a design call, a P0 on a brake surface, or a contradiction with a project
+  memory note — which wins by default, but surface it).
+- No findings is a valid result. A reviewer that errored or timed out is a *missing* result — say
+  so; never report it as clean.
+- **Re-check mode:** when called again after fixes, confirm each original ID against the current
+  tree (fixed / still open) and look at the fix itself for new problems. If the fix grew into new
+  behavior, do a full review instead.
